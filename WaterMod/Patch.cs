@@ -2,7 +2,7 @@
 
 using System;
 using System.Reflection;
-using Harmony;
+using HarmonyLib;
 using QModManager.Utility;
 using ModHelper.Config;
 using UnityEngine;
@@ -45,9 +45,11 @@ namespace WaterMod
         public static Material basic;
         public static Material fancy;
 
+        public static bool DestroyTreesInWater = false;
+
         public static void Main()
         {
-            var harmony = HarmonyInstance.Create("aceba1.ttmm.revived.water");
+            var harmony = new Harmony("aceba1.ttmm.revived.water");
             harmony.PatchAll(Assembly.GetExecutingAssembly());
 
             assetBundle = AssetBundle.LoadFromFile(Path.Combine(assets_path, "waterassets"));
@@ -57,6 +59,7 @@ namespace WaterMod
             thisMod.BindConfig<WaterParticleHandler>(null, "UseParticleEffects");
 
             WaterBuoyancy.Initiate();
+            ResSpawnOverride.Initiate();
 
             thisMod.BindConfig<QPatch>(null, "key_int");
             key = (KeyCode)key_int;
@@ -76,7 +79,9 @@ namespace WaterMod
             thisMod.BindConfig<WaterBuoyancy>(null, "SelectedLook");
             thisMod.BindConfig<WaterBuoyancy>(null, "AbyssDepth");
 
-            /*WaterBuoyancy._WeatherMod = ModExists("TTQMM WeatherMod");
+            thisMod.BindConfig<WaterBuoyancy>(null, "DestroyTreesInWater");
+
+            WaterBuoyancy._WeatherMod = ModExists("TTQMM WeatherMod");
             if (WaterBuoyancy._WeatherMod)
             {
                 Debug.Log("Found WeatherMod!");
@@ -84,7 +89,7 @@ namespace WaterMod
                 thisMod.BindConfig<WaterBuoyancy>(null, "RainDrainMultiplier");
                 thisMod.BindConfig<WaterBuoyancy>(null, "FloodChangeClamp");
                 thisMod.BindConfig<WaterBuoyancy>(null, "FloodHeightMultiplier");
-            }*/
+            }
 
             _thisMod = thisMod;
 
@@ -98,6 +103,10 @@ namespace WaterMod
             UseParticleEffects.onValueSaved.AddListener(() => { WaterParticleHandler.UseParticleEffects = UseParticleEffects.SavedValue; });
             Height = new OptionRange("Height level", ModName, WaterBuoyancy.Height, -75f, 100f, 1f);
             Height.onValueSaved.AddListener(() => { WaterBuoyancy.Height = Height.SavedValue; });
+
+            noTreesInWater = new OptionToggle("Remove Submerged Trees", ModName, DestroyTreesInWater);
+            noTreesInWater.onValueSaved.AddListener(() => { DestroyTreesInWater = noTreesInWater.SavedValue; });
+
 
             var WaterProperties = ModName + " - Water properties";
             Density = new OptionRange("Density", WaterProperties, WaterBuoyancy.Density, -16, 16, 0.25f);
@@ -135,7 +144,7 @@ namespace WaterMod
             var waterAbyssDepth = new OptionRange("Abyss depth", WaterLook, WaterBuoyancy.AbyssDepth);
             waterAbyssDepth.onValueSaved.AddListener(() => { WaterBuoyancy.AbyssDepth = waterAbyssDepth.SavedValue; });
 
-            /*if (WaterBuoyancy._WeatherMod)
+            if (WaterBuoyancy._WeatherMod)
             {
                 var WeatherProperties = ModName + " - Weather mod";
                 RainWeightMultiplier = new OptionRange("Rain Weight Multiplier", WeatherProperties, WaterBuoyancy.RainWeightMultiplier, 0, 0.25f, 0.01f);
@@ -146,12 +155,15 @@ namespace WaterMod
                 FloodRateClamp.onValueSaved.AddListener(() => { WaterBuoyancy.FloodChangeClamp = FloodRateClamp.SavedValue; });
                 FloodHeightMultiplier = new OptionRange("Flood Height Multiplier", WeatherProperties, WaterBuoyancy.FloodHeightMultiplier, 0, 50f, 1f);
                 FloodHeightMultiplier.onValueSaved.AddListener(() => { WaterBuoyancy.FloodHeightMultiplier = FloodHeightMultiplier.SavedValue; });
-            }*/
+            }
         }
         public static OptionKey GUIMenu;
         public static OptionToggle IsWaterActive;
         public static OptionToggle UseParticleEffects;
         public static OptionRange Height;
+
+        public static OptionToggle noTreesInWater;
+
         public static OptionRange Density;
         public static OptionRange FanJetMultiplier;
         public static OptionRange ResourceBuoyancy;
@@ -622,14 +634,14 @@ namespace WaterMod
                     NetHeightSmooth = NetHeightSmooth * 0.9f + NetworkHandler.ServerWaterHeight * 0.1f;
                 }
                 folder.transform.position = new Vector3(Singleton.camera.transform.position.x, HeightCalc, Singleton.camera.transform.position.z);
-                /*if (_WeatherMod && !flag)
+                if (_WeatherMod && !flag)
                 {
                     float dTime = Time.deltaTime;
                     float newHeight = RainFlood;
                     //newHeight += WeatherMod.RainWeight * RainWeightMultiplier * dTime;
                     newHeight *= 1f - RainDrainMultiplier * dTime;
                     RainFlood += Mathf.Clamp(newHeight - RainFlood, -FloodChangeClamp * dTime, FloodChangeClamp * dTime);
-                }*/
+                }
             }
             catch { }
         }
@@ -666,15 +678,18 @@ namespace WaterMod
                 Mesh plane = Instantiate(tempGO.GetComponent<MeshFilter>().mesh);
 
                 var shader = Shader.Find("Standard");
+                //var shader = Shader.Find("Shield");
+                //var shader = Shader.Find("Unlit/Transparent");
+                //var shader = Shader.Find("Legacy Shaders/Particles/Alpha Blended Premultiply");
                 if (!shader)
                 {
                     IEnumerable<Shader> shaders = Resources.FindObjectsOfTypeAll<Shader>();
-                    shaders = shaders.Where(s => s.name == "Standard");
+                    shaders = shaders.Where(s => s.name == "Standard"); ////Standard
                     shader = shaders.ElementAt(1);
                 }
                 var defaultWater = new Material(shader)
                 {
-                    renderQueue = 3000,
+                    renderQueue = 3000,//3000
                     color = new Color(0.2f, 0.8f, 0.75f, 0.4f)
                 };
                 defaultWater.SetFloat("_Mode", 2f);
@@ -737,13 +752,25 @@ namespace WaterMod
                 Transform component = Surface.transform; component.parent = folder.transform;
                 Surface.GetComponent<Renderer>().material = defaultWater;
 
+                //Let's make Renderer do it's job
+                //  We will re-prioritize it's graphics to work like intended
+                Surface.GetComponent<Renderer>().sortingOrder = -1;//Make the water appear correctly
+                //Surface.GetComponent<Renderer>().allowOcclusionWhenDynamic = false;//
+                //Surface.GetComponent<Renderer>().receiveShadows = true;//
+                //Surface.GetComponent<Renderer>().sortingLayerID = 0;//
+                //Surface.GetComponent<Renderer>().sortingLayerName = "Default";//
+                //Surface.GetComponent<Renderer>().rendererPriority = 0;//
+                //Surface.GetComponent<Renderer>().renderingLayerMask = 1;//
+
                 WaterBuoyancy.surface = Surface;
 
                 component.localScale = new Vector3(2048f, 0.075f, 2048f);
 
                 GameObject PhysicsTrigger = new GameObject("PhysicsTrigger");
                 Transform PhysicsTriggerTransform = PhysicsTrigger.transform; PhysicsTriggerTransform.parent = folder.transform;
-                PhysicsTriggerTransform.localScale = new Vector3(2048f, 2048f, 2048f); PhysicsTriggerTransform.localPosition = new Vector3(0f, -1024f, 0f);
+                //PhysicsTriggerTransform.localScale = new Vector3(2048f, 2048f, 2048f); PhysicsTriggerTransform.localPosition = new Vector3(0f, -1024f, 0f);
+                PhysicsTriggerTransform.localScale = new Vector3(4096f, 2048f, 4096f); PhysicsTriggerTransform.localPosition = new Vector3(0f, -1024f, 0f);
+                //This is bigger to suppress that blind spot when the world does the treadmill thing.  Unknown performance impact.
                 PhysicsTrigger.AddComponent<BoxCollider>().isTrigger = true;
 
                 _inst = PhysicsTrigger.AddComponent<WaterBuoyancy>();
@@ -760,7 +787,8 @@ namespace WaterMod
                 GameObject PhysicsCollider = new GameObject("WaterCollider");
                 PhysicsCollider.layer = waterlayer;
                 Transform PhysicsColliderTransform = PhysicsCollider.transform; PhysicsColliderTransform.parent = folder.transform;
-                PhysicsColliderTransform.localScale = new Vector3(2048f, 2048f, 2048f); PhysicsColliderTransform.localPosition = new Vector3(0f, -1024f, 0f);
+                PhysicsColliderTransform.localScale = new Vector3(4096f, 2048f, 4096f); PhysicsColliderTransform.localPosition = new Vector3(0f, -1024f, 0f);
+                //This is bigger to suppress that blind spot when the world does the treadmill thing.  Unknown performance impact.
                 PhysicsCollider.AddComponent<BoxCollider>();
                 _inst.waterGUI = new GameObject().AddComponent<WaterGUI>();
                 _inst.waterGUI.gameObject.SetActive(false);

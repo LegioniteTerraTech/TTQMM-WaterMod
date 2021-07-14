@@ -121,12 +121,18 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="EEffectTypes.cs" />
     <Compile Include="NetworkHandler.cs" />
     <Compile Include="OBJParser.cs" />
     <Compile Include="ResSpawnOverride.cs" />
+    <Compile Include="WaterBlock.cs" />
+    <Compile Include="WaterBuoyency.cs" />
+    <Compile Include="WaterEffect.cs" />
+    <Compile Include="WaterObj.cs" />
     <Compile Include="WaterParticleHandler.cs" />
     <Compile Include="Patch.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="WaterTank.cs" />
     <Compile Include="WeatherMod.cs" />
   </ItemGroup>
   <ItemGroup>

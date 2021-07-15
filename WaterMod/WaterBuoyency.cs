@@ -12,6 +12,7 @@ namespace WaterMod
     {
         private static FieldInfo m_Sky = typeof(ManTimeOfDay).GetField("m_Sky", BindingFlags.NonPublic | BindingFlags.Instance);
         public static Texture2D CameraFilter;
+        public static Texture2D CameraFilterLava;
 
         public static float Height = -25f,
             FanJetMultiplier = 1.75f,
@@ -150,9 +151,18 @@ namespace WaterMod
             }
         }
 
+        int DamageClock = 0;
         private void FixedUpdate()
         {
-            heartBeat++;
+            heartBeat++;    // Updates the water
+            DamageClock++;
+            if (DamageClock >= LavaMode.DamageUpdateDelay)
+            {
+                LavaMode.DealPainThisFrame = true;
+                DamageClock = 0;
+            }
+            else
+                LavaMode.DealPainThisFrame = false;
         }
 
         bool CameraSubmerged = false;
@@ -164,6 +174,7 @@ namespace WaterMod
         Color ambientLight = RenderSettings.ambientLight;
 
         static Color underwaterColor = new Color(0, 0.2404828f, 1f, 0.5f);
+        static Color underLavaColor = new Color(0.97f, 0.41f, 0.024f, 0.5f);
 
         Gradient dayFogColors;
         Gradient nightFogColors;
@@ -183,6 +194,20 @@ namespace WaterMod
             {
                 new GradientColorKey(underwaterColor, 0f),
                 new GradientColorKey(underwaterColor, 1f),
+            }
+        };
+        Gradient underLavaSkyColors = new Gradient()
+        {
+            alphaKeys = new GradientAlphaKey[]
+            {
+                new GradientAlphaKey(1f, 0f),
+                new GradientAlphaKey(1f, 1f)
+            },
+
+            colorKeys = new GradientColorKey[]
+            {
+                new GradientColorKey(underLavaColor, 0f),
+                new GradientColorKey(underLavaColor, 1f),
             }
         };
 
@@ -249,16 +274,31 @@ namespace WaterMod
                     sky.Ambient.Mode = TOD_AmbientType.None;
 
                     var multiplier = Mathf.Approximately(AbyssDepth, 0) ? 1 : 1 - (Mathf.Max(HeightCalc - Camera.main.transform.position.y, 0) / AbyssDepth);
-                    var abyssColor = underwaterColor * multiplier;
-                    abyssColor.a = 1f;
-                    RenderSettings.fogColor = abyssColor;
-                    RenderSettings.ambientLight = abyssColor;
-                    RenderSettings.ambientGroundColor = abyssColor;
-                    RenderSettings.ambientIntensity = 1 - multiplier;
+                    Color abyssColor;
+                    if (QPatch.TheWaterIsLava)
+                    {
+                        abyssColor = underwaterColor * multiplier;
+                        abyssColor.a = 1f;
+                        RenderSettings.fogColor = abyssColor;
+                        RenderSettings.ambientLight = abyssColor;
+                        RenderSettings.ambientGroundColor = abyssColor;
+                        RenderSettings.ambientIntensity = 1 - multiplier;
+                        underLavaSkyColors.colorKeys[0].color = underLavaSkyColors.colorKeys[1].color = abyssColor;
 
-                    underWaterSkyColors.colorKeys[0].color = underWaterSkyColors.colorKeys[1].color = abyssColor;
+                        sky.Day.FogColor = sky.Night.FogColor = sky.Day.LightColor = sky.Night.LightColor = sky.Day.SkyColor = sky.Night.SkyColor = underLavaSkyColors;
+                    }
+                    else
+                    {
+                        abyssColor = underwaterColor * multiplier;
+                        abyssColor.a = 1f;
+                        RenderSettings.fogColor = abyssColor;
+                        RenderSettings.ambientLight = abyssColor;
+                        RenderSettings.ambientGroundColor = abyssColor;
+                        RenderSettings.ambientIntensity = 1 - multiplier;
+                        underWaterSkyColors.colorKeys[0].color = underWaterSkyColors.colorKeys[1].color = abyssColor;
 
-                    sky.Day.FogColor = sky.Night.FogColor = sky.Day.LightColor = sky.Night.LightColor = sky.Day.SkyColor = sky.Night.SkyColor = underWaterSkyColors;
+                        sky.Day.FogColor = sky.Night.FogColor = sky.Day.LightColor = sky.Night.LightColor = sky.Day.SkyColor = sky.Night.SkyColor = underWaterSkyColors;
+                    }
                 }
 
                 ManNetwork mp = ManNetwork.inst;
@@ -330,11 +370,13 @@ namespace WaterMod
 
         public static List<WaterLook> waterLooks = new List<WaterLook>();
 
+
         public static void Initiate()
         {
             ManWorldTreadmill.inst.OnBeforeWorldOriginMove.Subscribe(WorldShift);
             try
             {
+                // WATER BASIC
                 CameraFilter = new Texture2D(32, 32);
                 for (int i = 0; i < 32; i++)
                 {
@@ -365,17 +407,21 @@ namespace WaterMod
                 var defaultWater = new Material(shader)
                 {
                     renderQueue = 3000,//3000
-                    color = new Color(0.2f, 0.8f, 0.75f, 0.4f)
+                    //color = new Color(0.2f, 0.8f, 0.75f, 0.4f)
+                    color = new Color(0.2f, 0.8f, 0.75f, 0.325f)
                 };
                 defaultWater.SetFloat("_Mode", 2f);
-                defaultWater.SetFloat("_Metallic", 0.6f);
-                defaultWater.SetFloat("_Glossiness", 0.9f);
+                defaultWater.SetFloat("_Metallic", 0.4f);
+                defaultWater.SetFloat("_Glossiness", 0.6f);
                 defaultWater.SetInt("_SrcBlend", 5);
                 defaultWater.SetInt("_DstBlend", 10);
                 defaultWater.SetInt("_ZWrite", 0);
                 defaultWater.DisableKeyword("_ALPHATEST_ON");
                 defaultWater.EnableKeyword("_ALPHABLEND_ON");
                 defaultWater.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+                defaultWater.EnableKeyword("_EMISSION");
+                defaultWater.SetColor("_Color", new Color(0.2f, 0.8f, 0.75f, 0.325f));
+                defaultWater.SetColor("_EmissionColor", new Color(0.05f, 0.125f, 0.2f, 1f));
 
                 waterLooks.Add(new WaterLook()
                 {
@@ -384,7 +430,49 @@ namespace WaterMod
                     mesh = plane
                 });
 
+                // LAVA BASIC
+                CameraFilterLava = new Texture2D(32, 32);
+                for (int i = 0; i < 32; i++)
+                {
+                    for (int j = 0; j < 32; j++)
+                    {
+                        CameraFilterLava.SetPixel(i, j, new Color(
+                            0.97f - (Mathf.Abs(i - 16f) + Mathf.Abs(j - 16f)) * 0.015f,
+                            0.41f - (Mathf.Abs(i - 16f) + Mathf.Abs(j - 16f)) * 0.01f,
+                            0.024f - (Mathf.Abs(i - 16f) + Mathf.Abs(j - 16f)) * 0.005f,
+                            1f));//0.28f
+                    }
+                }
+                CameraFilterLava.Apply();
 
+                defaultLava = new Material(shader)
+                {
+                    renderQueue = 3000,//3000
+                    color = new Color(0.97f, 0.41f, 0.024f, 0.9f)
+                    
+                };
+                defaultLava.SetFloat("_Mode", 2f);
+                defaultLava.SetFloat("_Metallic", 0.5f);
+                defaultLava.SetFloat("_Glossiness", 0.9f);
+                defaultLava.SetInt("_SrcBlend", 5);
+                defaultLava.SetInt("_DstBlend", 10);
+                defaultLava.SetInt("_ZWrite", 0);
+                defaultLava.SetColor("_Color", new Color(1f, 0.6f, 0.2f, 0.79f));
+                defaultLava.SetColor("_EmissionColor", new Color(0.97f, 0.46f, 0.1f, 0.5f));
+                defaultLava.DisableKeyword("_ALPHATEST_ON");
+                defaultLava.EnableKeyword("_ALPHABLEND_ON");
+                defaultLava.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+                defaultLava.EnableKeyword("_EMISSION");
+                /*
+                waterLooks.Add(new WaterLook()
+                {
+                    name = "Lava",
+                    material = defaultLava,
+                    mesh = plane
+                });
+                */
+
+                // WATER FANCY (Waveless)
                 Material fancyWavelessWater = new Material(QPatch.assetBundle.LoadAllAssets<Shader>().First(s => s.name == "Shader Forge/CartoonWaterWaveless"));
                 fancyWavelessWater.SetFloat("_UseWorldCoordinates", 1f);
                 fancyWavelessWater.SetFloat("_RippleDensity", 0.25f);
@@ -397,7 +485,7 @@ namespace WaterMod
                     mesh = plane
                 });
 
-
+                // WATER FANCY (FULL)
                 Material fancyWater = new Material(QPatch.assetBundle.LoadAsset<Shader>("CartoonWater"));
                 fancyWater.SetFloat("_UseWorldCoordinates", 1f);
                 fancyWater.SetFloat("_RippleDensity", 0.25f);
@@ -417,6 +505,7 @@ namespace WaterMod
                 });
 
 
+                // Construct the water the techs go in
                 var folder = new GameObject("WaterObject");
                 folder.transform.position = Vector3.zero;
 
@@ -425,13 +514,18 @@ namespace WaterMod
                 GameObject Surface = tempGO;
                 Destroy(Surface.GetComponent<MeshCollider>());
                 Transform component = Surface.transform; component.parent = folder.transform;
-                Surface.GetComponent<Renderer>().material = defaultWater;
+                //Surface.GetComponent<Renderer>().material = defaultWater;
+                //Surface.GetComponent<Renderer>().material = defaultLava;
+                if (QPatch.TheWaterIsLava)
+                    Surface.GetComponent<Renderer>().material = defaultLava;
+                else
+                    Surface.GetComponent<Renderer>().material = defaultWater;
 
                 //Let's make Renderer do it's job
                 //  We will re-prioritize it's graphics to work like intended
                 Surface.GetComponent<Renderer>().sortingOrder = -1;//Make the water appear correctly
                 //Surface.GetComponent<Renderer>().allowOcclusionWhenDynamic = false;//
-                //Surface.GetComponent<Renderer>().receiveShadows = true;//
+                Surface.GetComponent<Renderer>().receiveShadows = true;//
                 //Surface.GetComponent<Renderer>().sortingLayerID = 0;//
                 //Surface.GetComponent<Renderer>().sortingLayerName = "Default";//
                 //Surface.GetComponent<Renderer>().rendererPriority = 0;//
@@ -483,9 +577,15 @@ namespace WaterMod
             }
         }
 
+        //setup in Initiate
+        static Material defaultLava;
+
         public static void UpdateLook(WaterLook waterLook)
         {
-            surface.GetComponent<Renderer>().material = waterLook.material;
+            if (waterLook.name == "Default" && QPatch.TheWaterIsLava)
+                surface.GetComponent<Renderer>().material = defaultLava;
+            else
+                surface.GetComponent<Renderer>().material = waterLook.material;
             surface.GetComponent<MeshFilter>().mesh = waterLook.mesh;
         }
 

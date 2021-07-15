@@ -130,9 +130,14 @@ namespace WaterMod
                     _rbody.useGravity = false;
                 }
                 else
-                {
+                {   // Laser debuff
                     initVelocity = _rbody.velocity;
                     _rbody.velocity = initVelocity * (1f / (WaterBuoyancy.Density * WaterBuoyancy.LaserFraction + 1f));
+
+                    //  Erad laser
+                    //(effectBase as LaserProjectile).HandleCollision(null, gameObject.transform.position, null, true);
+
+                    //(effectBase as LaserProjectile).SetInstanceField("m_TimeoutDestroyEvent", managedEvent2);
                 }
                 var managedEvent2 = (this.effectBase as Projectile).GetInstanceField("m_TimeoutDestroyEvent") as ManTimedEvents.ManagedEvent;
                 managedEvent2.Reset(managedEvent2.TimeRemaining * destroyMultiplier);
@@ -141,10 +146,14 @@ namespace WaterMod
 
                 return;
             }
-            catch (Exception e)
+            catch //(Exception e)
             {
                 bool flag = _rbody == null;
-                Debug.Log("Exception in Ent: " + e.Message + "\n efectType: " + effectType.ToString() + (flag ? "\nRigidbody is null!" : ""));
+                // It's null for the following reasons:
+                //    Held in anchored (solid, not sky anchor) tractor beam
+                //    stale on the ground for too long
+                //    Quieted it for now as log became busy
+                //Debug.Log("Exception in Ent: " + e.Message + "\n efectType: " + effectType.ToString() + (flag ? "\nRigidbody is null!" : ""));
                 if (flag)
                 {
                     GetRBody();
@@ -182,7 +191,7 @@ namespace WaterMod
                     //(this.effectBase as MissileProjectile).SetInstanceField("m_BoosterDeactivationEvent", managedEvent);
                 }
                 else
-                {
+                {   // Laser debuff
                     _rbody.velocity = initVelocity * (WaterBuoyancy.Density * 0.025f * WaterBuoyancy.LaserFraction + 1f);
                 }
                 var managedEvent2 = (this.effectBase as Projectile).GetInstanceField("m_TimeoutDestroyEvent") as ManTimedEvents.ManagedEvent;
@@ -191,10 +200,10 @@ namespace WaterMod
 
                 return;
             }
-            catch (Exception e)
+            catch //(Exception e)
             {
                 bool flag = _rbody == null;
-                Debug.Log("Exception in Ext: " + e.Message + "\n efectType: " + effectType.ToString() + (flag ? "\nRigidbody is null!" : ""));
+                //Debug.Log("Exception in Ext: " + e.Message + "\n efectType: " + effectType.ToString() + (flag ? "\nRigidbody is null!" : ""));
                 if (flag)
                 {
                     GetRBody();

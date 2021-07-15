@@ -122,6 +122,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="EEffectTypes.cs" />
+    <Compile Include="LavaMode.cs" />
     <Compile Include="NetworkHandler.cs" />
     <Compile Include="OBJParser.cs" />
     <Compile Include="ResSpawnOverride.cs" />

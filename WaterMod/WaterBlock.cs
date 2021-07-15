@@ -117,6 +117,12 @@ namespace WaterMod
                 Surface();
             }
             TankBlock.rbody.AddForce(Vector3.up * (Submerge * WaterBuoyancy.Density * 5f));
+            if (QPatch.TheWaterIsLava)
+            {
+                TankBlock.damage.MultiplayerFakeDamagePulse();
+                if (LavaMode.DealPainThisFrame)
+                    Singleton.Manager<ManDamage>.inst.DealDamage(TankBlock.GetComponent<Damageable>(), LavaMode.MeltBlocksStrength * Submerge * Time.deltaTime, ManDamage.DamageType.Fire, LavaMode.inst);
+            }
         }
 
         public void ApplyConnectedForce()
@@ -137,6 +143,26 @@ namespace WaterMod
             if (this.isFanJet)
             {
                 ApplyMultiplierFanJet();
+            }
+            ApplyDamageIfLava(TankBlock.centreOfMassWorld);
+        }
+
+        private void ApplyDamageIfLava(Vector3 vector)
+        {
+            if (QPatch.TheWaterIsLava)
+            {
+                TankBlock.damage.MultiplayerFakeDamagePulse();
+                if (LavaMode.DealPainThisFrame)
+                {
+                    float Submerge = WaterBuoyancy.HeightCalc - vector.y;
+                    Submerge = Submerge * Mathf.Abs(Submerge) + WaterBuoyancy.SurfaceSkinning;
+                    if (Submerge > 1.5f)
+                        Submerge = 1.5f;
+                    else if (Submerge < -0.2f)
+                        Submerge = -0.2f;
+
+                    Singleton.Manager<ManDamage>.inst.DealDamage(TankBlock.GetComponent<Damageable>(), LavaMode.MeltBlocksStrength * Submerge, ManDamage.DamageType.Fire, LavaMode.inst);
+                }
             }
         }
 

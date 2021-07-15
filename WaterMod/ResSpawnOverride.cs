@@ -28,7 +28,7 @@ namespace WaterMod
             int removed = 0;
             foreach (Visible vis in Singleton.Manager<ManVisible>.inst.VisiblesTouchingRadius(Singleton.cameraTrans.position, 2500, new Bitfield<ObjectTypes>()))
             {
-                if (vis.resdisp.IsNotNull() && vis.centrePosition.y < WaterMod.QPatch.WaterHeight)
+                if (vis.resdisp.IsNotNull() && vis.centrePosition.y < QPatch.WaterHeight)
                 {
                     switch (vis.resdisp.GetSceneryType())
                     {   // lets see here, we remove trees that which exists

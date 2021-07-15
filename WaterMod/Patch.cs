@@ -41,7 +41,9 @@ namespace WaterMod
         public static Material basic;
         public static Material fancy;
 
+        // Experimentals
         public static bool DestroyTreesInWater = true;
+        public static bool TheWaterIsLava = false;
 
         public static void Main()
         {
@@ -56,6 +58,7 @@ namespace WaterMod
 
             WaterBuoyancy.Initiate();
             ResSpawnOverride.Initiate();
+            LavaMode.Initiate();
 
             thisMod.BindConfig<QPatch>(null, "key_int");
             key = (KeyCode)key_int;
@@ -76,6 +79,7 @@ namespace WaterMod
             thisMod.BindConfig<WaterBuoyancy>(null, "AbyssDepth");
 
             thisMod.BindConfig<WaterBuoyancy>(null, "DestroyTreesInWater");
+            thisMod.BindConfig<WaterBuoyancy>(null, "TheWaterIsLava");
 
             WaterBuoyancy._WeatherMod = ModExists("TTQMM WeatherMod");
             if (WaterBuoyancy._WeatherMod)
@@ -102,6 +106,8 @@ namespace WaterMod
 
             noTreesInWater = new OptionToggle("Remove Submerged Trees", ModName, DestroyTreesInWater);
             noTreesInWater.onValueSaved.AddListener(() => { DestroyTreesInWater = noTreesInWater.SavedValue; });
+            makeDeath = new OptionToggle("but it's lava", ModName, TheWaterIsLava);
+            makeDeath.onValueSaved.AddListener(() => { TheWaterIsLava = makeDeath.SavedValue; });
 
 
             var WaterProperties = ModName + " - Water properties";
@@ -159,6 +165,7 @@ namespace WaterMod
         public static OptionRange Height;
 
         public static OptionToggle noTreesInWater;
+        public static OptionToggle makeDeath;
 
         public static OptionRange Density;
         public static OptionRange FanJetMultiplier;

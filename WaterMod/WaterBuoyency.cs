@@ -99,8 +99,8 @@ namespace WaterMod
                             //ManNetwork.inst.SendToAllClients(WaterChange, new WaterChangeMessage() { Height = ServerWaterHeight }, ManNetwork.inst.MyPlayer.netId);
                             //Console.WriteLine("Sent new water height, changed to " + ServerWaterHeight.ToString());
                         }
-                        if (NetworkHandler.ServerLava != QPatch.TheWaterIsLava)
-                            NetworkHandler.ServerLava = QPatch.TheWaterIsLava;
+                        if (NetworkHandler.ServerLava != QPatch.theWaterIsLava)
+                            NetworkHandler.ServerLava = QPatch.theWaterIsLava;
                     }
                 }
                 catch { }

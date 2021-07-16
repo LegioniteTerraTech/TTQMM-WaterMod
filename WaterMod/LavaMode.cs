@@ -42,13 +42,14 @@ namespace WaterMod
             }
             else
             {
-                QPatch.TheWaterIsLava = false;
+                if (!QPatch.WantsLava)
+                    QPatch.theWaterIsLava = false;
                 try
                 {
                     if (ManNetwork.inst.IsMultiplayer() && ManNetwork.IsHost)
                     {
-                        if (NetworkHandler.ServerLava != QPatch.TheWaterIsLava)
-                            NetworkHandler.ServerLava = QPatch.TheWaterIsLava;
+                        if (NetworkHandler.ServerLava != QPatch.theWaterIsLava)
+                            NetworkHandler.ServerLava = QPatch.theWaterIsLava;
                     }
                 }
                 catch { }
@@ -98,13 +99,13 @@ namespace WaterMod
                     {
                         Singleton.Manager<ManSFX>.inst.PlayUISFX(ManSFX.UISfxType.Enter);
                         ScreamLava();
-                        QPatch.TheWaterIsLava = true;
+                        QPatch.theWaterIsLava = true;
                         try
                         {
                             if (ManNetwork.inst.IsMultiplayer() && ManNetwork.IsHost)
                             {
-                                if (NetworkHandler.ServerLava != QPatch.TheWaterIsLava)
-                                    NetworkHandler.ServerLava = QPatch.TheWaterIsLava;
+                                if (NetworkHandler.ServerLava != QPatch.theWaterIsLava)
+                                    NetworkHandler.ServerLava = QPatch.theWaterIsLava;
                             }
                         }
                         catch { }

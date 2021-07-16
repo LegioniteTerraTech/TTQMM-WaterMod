@@ -31,6 +31,20 @@ namespace WaterMod
                     },
                     mode = GradientMode.Blend
                 });
+        public static ParticleSystem.MinMaxGradient LavaGradient = new ParticleSystem.MinMaxGradient(
+                new Gradient()
+                {
+                    alphaKeys = new GradientAlphaKey[] {
+                    new GradientAlphaKey(0f, 0f),
+                    new GradientAlphaKey(0.3f, 0.25f),
+                    new GradientAlphaKey(0f, 1f)
+                    },
+                    colorKeys = new GradientColorKey[] {
+                    new GradientColorKey(new Color(0.95f, 0.7f, 0.4f), 0.5f),
+                    new GradientColorKey(new Color(0.69f, 0.05f, 0.05f), 1f)
+                    },
+                    mode = GradientMode.Blend
+                });
 
         public static void Initialize()
         {
@@ -92,7 +106,10 @@ namespace WaterMod
 
             var c = ps.colorOverLifetime;
             c.enabled = true;
-            c.color = WaterGradient;
+            if (!QPatch.TheWaterIsLava)
+                c.color = WaterGradient;
+            else
+                c.color = LavaGradient;
 
             var sz = ps.sizeOverLifetime;
             sz.enabled = true;
@@ -134,7 +151,10 @@ namespace WaterMod
 
             var c = ps.colorOverLifetime;
             c.enabled = true;
-            c.color = WaterGradient;
+            if (!QPatch.TheWaterIsLava)
+                c.color = WaterGradient;
+            else
+                c.color = LavaGradient;
 
             var o = ps.sizeOverLifetime;
             o.enabled = true;

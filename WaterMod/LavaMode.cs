@@ -15,6 +15,8 @@ namespace WaterMod
         public static float MeltBlocksStrength = 25;
         public static bool DealPainThisFrame = false;
 
+        private static bool WarnLavaMP = false;
+
         public static void Initiate()
         {
             var startup = new GameObject("EvilLavaBeast");
@@ -30,8 +32,13 @@ namespace WaterMod
         {
             if (QPatch.WantsLava && !QPatch.TheWaterIsLava)
             {
-                Singleton.Manager<ManSFX>.inst.PlayUISFX(ManSFX.UISfxType.Warning);
+                WarnLavaMP = ManNetwork.inst.IsMultiplayer() && !ManNetwork.IsHost;
+                Singleton.Manager<ManSFX>.inst.PlayUISFX(ManSFX.UISfxType.MissionFailed);
                 warner.SetActive(true);
+                if (WarnLavaMP)
+                {
+                    QPatch.WantsLava = false;
+                }
             }
             else
             {
@@ -63,34 +70,53 @@ namespace WaterMod
 
             private void GUIWindow(int ID)
             {
-                GUILayout.Label("<b>--------Warning--------</b>");
-                GUILayout.Label("<b><color=#f23d3dff>>  THIS WILL MELT TECHS  <</color></b>");
-                if (GUI.Button(new Rect(20, 75, 80, 60), "Stay Safe"))
+                if (!WarnLavaMP)
                 {
-                    Singleton.Manager<ManSFX>.inst.PlayUISFX(ManSFX.UISfxType.Back);
-                    QPatch.WantsLava = false;
-                    gameObject.SetActive(false);
-                    try
+                    GUILayout.Label("<b>--------Warning--------</b>");
+                    GUILayout.Label("<b><color=#f23d3dff>>  THIS WILL MELT TECHS  <</color></b>");
+                    if (GUI.Button(new Rect(20, 75, 80, 60), "Stay Safe"))
                     {
-                        QPatch.makeDeath.Value = false;
-                    }
-                    catch { }
-                }
-                if (GUI.Button(new Rect(100, 75, 80, 60), "<color=#f23d3dff>All Must\nPerish</color>"))
-                {
-                    Singleton.Manager<ManSFX>.inst.PlayUISFX(ManSFX.UISfxType.Enter);
-                    QPatch.TheWaterIsLava = true;
-                    try
-                    {
-                        if (ManNetwork.inst.IsMultiplayer() && ManNetwork.IsHost)
+                        Singleton.Manager<ManSFX>.inst.PlayUISFX(ManSFX.UISfxType.Back);
+                        QPatch.WantsLava = false;
+                        gameObject.SetActive(false);
+                        try
                         {
-                            if (NetworkHandler.ServerLava != QPatch.TheWaterIsLava)
-                                NetworkHandler.ServerLava = QPatch.TheWaterIsLava;
+                            QPatch.makeDeath.Value = false;
                         }
+                        catch { }
                     }
-                    catch { }
-                    WaterBuoyancy.UpdateLook(WaterBuoyancy.waterLooks[WaterBuoyancy.SelectedLook]);
-                    gameObject.SetActive(false);
+                    if (GUI.Button(new Rect(100, 75, 80, 60), "<color=#f23d3dff>All Must\nPerish</color>"))
+                    {
+                        Singleton.Manager<ManSFX>.inst.PlayUISFX(ManSFX.UISfxType.Enter);
+                        QPatch.TheWaterIsLava = true;
+                        try
+                        {
+                            if (ManNetwork.inst.IsMultiplayer() && ManNetwork.IsHost)
+                            {
+                                if (NetworkHandler.ServerLava != QPatch.TheWaterIsLava)
+                                    NetworkHandler.ServerLava = QPatch.TheWaterIsLava;
+                            }
+                        }
+                        catch { }
+                        WaterBuoyancy.UpdateLook(WaterBuoyancy.waterLooks[WaterBuoyancy.SelectedLook]);
+                        gameObject.SetActive(false);
+                    }
+                }
+                else
+                {
+                    GUILayout.Label("<b>  Only the server host  </b>");
+                    GUILayout.Label("<b>    can summon lava.    </b>");
+                    if (GUI.Button(new Rect(60, 75, 80, 60), "<b>Okay</b>"))
+                    {
+                        Singleton.Manager<ManSFX>.inst.PlayUISFX(ManSFX.UISfxType.InfoClose);
+                        QPatch.WantsLava = false;
+                        gameObject.SetActive(false);
+                        try
+                        {
+                            QPatch.makeDeath.Value = false;
+                        }
+                        catch { }
+                    }
                 }
             }
         }

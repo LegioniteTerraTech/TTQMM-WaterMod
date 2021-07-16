@@ -43,21 +43,27 @@ namespace WaterMod
 
         // Experimentals
         public static bool DestroyTreesInWater = false;
-        public static bool WantsLava = false;
+        internal static bool WantsLava = false;
+        /// <summary>
+        /// Only edit if absolutely nesseary! Use TheWaterIsLava instead
+        /// </summary>
         public static bool theWaterIsLava = false;
         public static bool TheWaterIsLava 
         { 
             get 
             {
-                bool yes = theWaterIsLava;
-                if (ManGameMode.inst.IsCurrentModeMultiplayer())
+                try
                 {
-                    if (ManGameMode.inst.IsCurrent<ModeDeathmatch>())
-                        yes = false;
-                    else
-                        yes = NetworkHandler.ServerLava;
+                    if (ManGameMode.inst.IsCurrentModeMultiplayer())
+                    {
+                        if (ManGameMode.inst.IsCurrent<ModeDeathmatch>())
+                            return false;
+                        else
+                            return NetworkHandler.ServerLava;
+                    }
                 }
-                return yes;
+                catch { }
+                return theWaterIsLava;
             }
             set
             {

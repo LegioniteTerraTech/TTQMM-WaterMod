@@ -103,7 +103,12 @@ namespace WaterMod
             var reader = new LavaStateMessage();
             netMsg.ReadMessage(reader);
             serverLava = reader.IsLava;
-            Console.WriteLine("Received new water level, changing to " + serverWaterHeight.ToString());
+            if (serverLava)
+            {
+                Singleton.Manager<ManSFX>.inst.PlayMiscSFX(ManSFX.MiscSfxType.CabDetachKlaxon);
+                //Singleton.Manager<ManSFX>.inst.PlayUISFX(ManSFX.UISfxType.PayloadIncoming);
+            }
+            Console.WriteLine("Received new lava state, changing to " + serverLava.ToString());
         }
 
         public static class Patches

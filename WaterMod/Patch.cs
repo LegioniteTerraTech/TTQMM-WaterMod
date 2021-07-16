@@ -43,7 +43,27 @@ namespace WaterMod
 
         // Experimentals
         public static bool DestroyTreesInWater = false;
-        public static bool TheWaterIsLava = false;
+        public static bool WantsLava = false;
+        public static bool theWaterIsLava = false;
+        public static bool TheWaterIsLava 
+        { 
+            get 
+            {
+                bool yes = theWaterIsLava;
+                if (ManGameMode.inst.IsCurrentModeMultiplayer())
+                {
+                    if (ManGameMode.inst.IsCurrent<ModeDeathmatch>())
+                        yes = false;
+                    else
+                        yes = NetworkHandler.ServerLava;
+                }
+                return yes;
+            }
+            set
+            {
+                theWaterIsLava = value;
+            }
+        }
 
         public static void Main()
         {
@@ -79,7 +99,7 @@ namespace WaterMod
             thisMod.BindConfig<WaterBuoyancy>(null, "AbyssDepth");
 
             thisMod.BindConfig<QPatch>(null, "DestroyTreesInWater");
-            thisMod.BindConfig<QPatch>(null, "TheWaterIsLava");
+            thisMod.BindConfig<QPatch>(null, "theWaterIsLava");
 
             WaterBuoyancy._WeatherMod = ModExists("TTQMM WeatherMod");
             if (WaterBuoyancy._WeatherMod)
@@ -106,8 +126,8 @@ namespace WaterMod
 
             noTreesInWater = new OptionToggle("Destroy <b>[!FOREVER!]</b> Submerged Trees", ModName, DestroyTreesInWater);
             noTreesInWater.onValueSaved.AddListener(() => { DestroyTreesInWater = noTreesInWater.SavedValue; });
-            makeDeath = new OptionToggle("but it's lava", ModName, TheWaterIsLava);
-            makeDeath.onValueSaved.AddListener(() => { TheWaterIsLava = makeDeath.SavedValue; });
+            makeDeath = new OptionToggle("but it's lava", ModName, theWaterIsLava);
+            makeDeath.onValueSaved.AddListener(() => { WantsLava = makeDeath.SavedValue; LavaMode.ThrowLavaDeathWarning(); });
 
 
             var WaterProperties = ModName + " - Water properties";

@@ -59,11 +59,17 @@ namespace WaterMod
                     switch (effectType)
                     {
                         case EffectTypes.NormalProjectile:
-                            _rbody.velocity *= 1f - (WaterBuoyancy.Density * WaterBuoyancy.BulletDampener);
+                            if (QPatch.TheWaterIsLava)
+                                _rbody.velocity *= 1f - (WaterBuoyancy.Density * WaterBuoyancy.BulletDampener * 3);
+                            else
+                                _rbody.velocity *= 1f - (WaterBuoyancy.Density * WaterBuoyancy.BulletDampener);
                             break;
 
                         case EffectTypes.MissileProjectile:
-                            _rbody.velocity *= 1f - (WaterBuoyancy.Density * WaterBuoyancy.MissileDampener);
+                            if (QPatch.TheWaterIsLava)
+                                _rbody.velocity *= 1f - (WaterBuoyancy.Density * WaterBuoyancy.MissileDampener * 3);
+                            else
+                                _rbody.velocity *= 1f - (WaterBuoyancy.Density * WaterBuoyancy.MissileDampener);
                             break;
 
                         case EffectTypes.ResourceChunk:
@@ -81,7 +87,10 @@ namespace WaterMod
                                     num2 = -0.1f;
                                 }
                                 _rbody.AddForce(Vector3.up * WaterBuoyancy.Density * num2 * WaterBuoyancy.ResourceBuoyancyMultiplier, ForceMode.Force);
-                                _rbody.velocity -= (_rbody.velocity * _rbody.velocity.magnitude * (1f - WaterBuoyancy.Density / 10000f)) * 0.0025f;
+                                if (QPatch.TheWaterIsLava)
+                                    _rbody.velocity -= (_rbody.velocity * _rbody.velocity.magnitude * (1f - WaterBuoyancy.Density / 10000f)) * 0.0075f;
+                                else
+                                    _rbody.velocity -= (_rbody.velocity * _rbody.velocity.magnitude * (1f - WaterBuoyancy.Density / 10000f)) * 0.0025f;
                             }
                             break;
 

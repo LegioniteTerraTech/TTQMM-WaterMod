@@ -125,7 +125,7 @@
     <Compile Include="LavaMode.cs" />
     <Compile Include="NetworkHandler.cs" />
     <Compile Include="OBJParser.cs" />
-    <Compile Include="ResSpawnOverride.cs" />
+    <Compile Include="RemoveScenery.cs" />
     <Compile Include="WaterBlock.cs" />
     <Compile Include="WaterBuoyency.cs" />
     <Compile Include="WaterEffect.cs" />

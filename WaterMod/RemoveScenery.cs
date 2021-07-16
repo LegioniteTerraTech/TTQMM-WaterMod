@@ -7,20 +7,20 @@ using UnityEngine;
 
 namespace WaterMod
 {
-    public class ResSpawnOverride : MonoBehaviour
+    public class RemoveScenery : MonoBehaviour
     {   //  Remove trees that are in the water
         //    May not be optimized, please let me know if it's laggy 
         //    and I will rebuild this on a less update-heavy arrangement 
 
-        private static ResSpawnOverride inst;
+        private static RemoveScenery inst;
         private static int clock = 0;
 
         public static void Initiate()
         {   // 
-            var startup = new GameObject("ResSpawnOverride");
-            startup.AddComponent<ResSpawnOverride>();
-            inst = startup.GetComponent<ResSpawnOverride>();
-            Debug.Log("Water Mod: ResSpawnOverride - Initated!");
+            var startup = new GameObject("RemoveScenery");
+            startup.AddComponent<RemoveScenery>();
+            inst = startup.GetComponent<RemoveScenery>();
+            Debug.Log("WaterMod: ResSpawnOverride - Initated!");
         }
 
         private static void EradicateSelectRes()

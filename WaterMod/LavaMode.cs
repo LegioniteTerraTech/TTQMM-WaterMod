@@ -19,7 +19,7 @@ namespace WaterMod
             var startup = new GameObject("EvilLavaBeast");
             startup.AddComponent<LavaMode>();
             inst = startup.GetComponent<LavaMode>();
-            Debug.Log("Water Mod: LavaMode - Initated!");
+            Debug.Log("WaterMod: LavaMode - Initated!");
         }
     }
 }

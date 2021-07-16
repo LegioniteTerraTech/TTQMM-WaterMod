@@ -9,8 +9,10 @@ namespace WaterMod
         static bool HostExists = false;
 
         const TTMsgType WaterChange = (TTMsgType)228;
+        const TTMsgType WaterTypeChange = (TTMsgType)2263;
 
         private static float serverWaterHeight = -1000f;
+        private static bool serverLava = false;
 
         public static float ServerWaterHeight
         {
@@ -19,6 +21,15 @@ namespace WaterMod
             {
                 serverWaterHeight = value;
                 TryBroadcastNewHeight(serverWaterHeight);
+            }
+        }
+        public static bool ServerLava
+        {
+            get { return serverLava; }
+            set
+            {
+                serverLava = value;
+                TryBroadcastLavaState(serverLava);
             }
         }
 
@@ -41,6 +52,25 @@ namespace WaterMod
 
             public float Height;
         }
+        public class LavaStateMessage : UnityEngine.Networking.MessageBase
+        {
+            public LavaStateMessage() { }
+            public LavaStateMessage(bool isLava)
+            {
+                this.IsLava = isLava;
+            }
+            public override void Deserialize(UnityEngine.Networking.NetworkReader reader)
+            {
+                this.IsLava = reader.ReadBoolean();
+            }
+
+            public override void Serialize(UnityEngine.Networking.NetworkWriter writer)
+            {
+                writer.Write(this.IsLava);
+            }
+
+            public bool IsLava;
+        }
 
         public static void TryBroadcastNewHeight(float Water)
         {
@@ -51,12 +81,28 @@ namespace WaterMod
                 }
                 catch { Console.WriteLine("Failed to send new water level..."); }
         }
-
         public static void OnClientChangeWaterHeight(UnityEngine.Networking.NetworkMessage netMsg)
         {
             var reader = new WaterChangeMessage();
             netMsg.ReadMessage(reader);
             serverWaterHeight = reader.Height;
+            Console.WriteLine("Received new water level, changing to " + serverWaterHeight.ToString());
+        }
+
+        public static void TryBroadcastLavaState(bool isLava)
+        {
+            if (HostExists) try
+                {
+                    Singleton.Manager<ManNetwork>.inst.SendToAllClients(WaterTypeChange, new LavaStateMessage(isLava), Host);
+                    Console.WriteLine("Sent new lava state to all");
+                }
+                catch { Console.WriteLine("Failed to send lava state..."); }
+        }
+        public static void OnClientChangeLavaState(UnityEngine.Networking.NetworkMessage netMsg)
+        {
+            var reader = new LavaStateMessage();
+            netMsg.ReadMessage(reader);
+            serverLava = reader.IsLava;
             Console.WriteLine("Received new water level, changing to " + serverWaterHeight.ToString());
         }
 
@@ -76,6 +122,7 @@ namespace WaterMod
                     if (__instance.isServer || __instance.isLocalPlayer)
                     {
                         serverWaterHeight = -1000f;
+                        serverLava = false;
                         Console.WriteLine("Discarded " + __instance.netId.ToString() + " and reset server water level");
                         HostExists = false;
                     }
@@ -88,8 +135,10 @@ namespace WaterMod
                 static void Postfix(NetPlayer __instance)
                 {
                     Singleton.Manager<ManNetwork>.inst.SubscribeToClientMessage(__instance.netId, WaterChange, new ManNetwork.MessageHandler(OnClientChangeWaterHeight));
+                    Singleton.Manager<ManNetwork>.inst.SubscribeToClientMessage(__instance.netId, WaterTypeChange, new ManNetwork.MessageHandler(OnClientChangeLavaState));
                     Console.WriteLine("Subscribed " + __instance.netId.ToString() + " to water level updates from host. Sending current level");
                     TryBroadcastNewHeight(serverWaterHeight);
+                    TryBroadcastLavaState(serverLava);
                 }
             }
 
@@ -101,6 +150,7 @@ namespace WaterMod
                     if (!HostExists)
                     {
                         serverWaterHeight = -1000f;
+                        serverLava = false;
                         //Singleton.Manager<ManNetwork>.inst.SubscribeToServerMessage(__instance.netId, WaterChange, new ManNetwork.MessageHandler(OnServerChangeWaterHeight));
                         Console.WriteLine("Host started, hooked water level broadcasting to " + __instance.netId.ToString());
                         Host = __instance.netId;

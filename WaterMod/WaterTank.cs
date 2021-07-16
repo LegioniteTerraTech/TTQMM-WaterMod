@@ -45,12 +45,18 @@ namespace WaterMod
             {
                 tank.rbody.AddForceAtPosition(Vector3.up * (WaterBuoyancy.Density * 7.5f) * SubmergeCount, SubmergeAdditivePos / SubmergeCount);
                 SubmergeAdditivePos = Vector3.zero;
-                tank.rbody.AddForce(-(tank.rbody.velocity * WaterBuoyancy.SubmergedTankDampening + (Vector3.up * (tank.rbody.velocity.y * WaterBuoyancy.SubmergedTankDampeningYAddition))) * SubmergeCount, ForceMode.Force);
+                if (QPatch.TheWaterIsLava)
+                    tank.rbody.AddForce(-(tank.rbody.velocity * WaterBuoyancy.SubmergedTankDampening * 3 + (Vector3.up * (tank.rbody.velocity.y * WaterBuoyancy.SubmergedTankDampeningYAddition))) * SubmergeCount, ForceMode.Force);
+                else
+                    tank.rbody.AddForce(-(tank.rbody.velocity * WaterBuoyancy.SubmergedTankDampening + (Vector3.up * (tank.rbody.velocity.y * WaterBuoyancy.SubmergedTankDampeningYAddition))) * SubmergeCount, ForceMode.Force);
                 SubmergeCount = 0;
             }
             if (SurfaceCount != 0)
             {
-                tank.rbody.AddForceAtPosition(-(tank.rbody.velocity * WaterBuoyancy.SurfaceTankDampening + (Vector3.up * (tank.rbody.velocity.y * WaterBuoyancy.SurfaceTankDampeningYAddition))) * SurfaceCount, SurfaceAdditivePos / SurfaceCount);
+                if (QPatch.TheWaterIsLava)
+                    tank.rbody.AddForceAtPosition(-(tank.rbody.velocity * WaterBuoyancy.SurfaceTankDampening * 3 + (Vector3.up * (tank.rbody.velocity.y * WaterBuoyancy.SurfaceTankDampeningYAddition))) * SurfaceCount, SurfaceAdditivePos / SurfaceCount);
+                else
+                    tank.rbody.AddForceAtPosition(-(tank.rbody.velocity * WaterBuoyancy.SurfaceTankDampening + (Vector3.up * (tank.rbody.velocity.y * WaterBuoyancy.SurfaceTankDampeningYAddition))) * SurfaceCount, SurfaceAdditivePos / SurfaceCount);
                 SurfaceAdditivePos = Vector3.zero;
                 SurfaceCount = 0;
             }

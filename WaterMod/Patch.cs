@@ -33,7 +33,7 @@ namespace WaterMod
         public static ModConfig _thisMod;
 
         public static KeyCode key;
-        public static int key_int;
+        public static int key_int = 111;
 
         internal static AssetBundle assetBundle;
         internal static string asm_path = Assembly.GetExecutingAssembly().Location.Replace("WaterMod.dll", "");
@@ -42,7 +42,7 @@ namespace WaterMod
         public static Material fancy;
 
         // Experimentals
-        public static bool DestroyTreesInWater = true;
+        public static bool DestroyTreesInWater = false;
         public static bool TheWaterIsLava = false;
 
         public static void Main()
@@ -57,7 +57,7 @@ namespace WaterMod
             thisMod.BindConfig<WaterParticleHandler>(null, "UseParticleEffects");
 
             WaterBuoyancy.Initiate();
-            ResSpawnOverride.Initiate();
+            RemoveScenery.Initiate();
             LavaMode.Initiate();
 
             thisMod.BindConfig<QPatch>(null, "key_int");
@@ -78,8 +78,8 @@ namespace WaterMod
             thisMod.BindConfig<WaterBuoyancy>(null, "SelectedLook");
             thisMod.BindConfig<WaterBuoyancy>(null, "AbyssDepth");
 
-            thisMod.BindConfig<WaterBuoyancy>(null, "DestroyTreesInWater");
-            thisMod.BindConfig<WaterBuoyancy>(null, "TheWaterIsLava");
+            thisMod.BindConfig<QPatch>(null, "DestroyTreesInWater");
+            thisMod.BindConfig<QPatch>(null, "TheWaterIsLava");
 
             WaterBuoyancy._WeatherMod = ModExists("TTQMM WeatherMod");
             if (WaterBuoyancy._WeatherMod)
@@ -104,7 +104,7 @@ namespace WaterMod
             Height = new OptionRange("Height level", ModName, WaterBuoyancy.Height, -75f, 100f, 1f);
             Height.onValueSaved.AddListener(() => { WaterBuoyancy.Height = Height.SavedValue; });
 
-            noTreesInWater = new OptionToggle("Remove Submerged Trees", ModName, DestroyTreesInWater);
+            noTreesInWater = new OptionToggle("Destroy <b>[!FOREVER!]</b> Submerged Trees", ModName, DestroyTreesInWater);
             noTreesInWater.onValueSaved.AddListener(() => { DestroyTreesInWater = noTreesInWater.SavedValue; });
             makeDeath = new OptionToggle("but it's lava", ModName, TheWaterIsLava);
             makeDeath.onValueSaved.AddListener(() => { TheWaterIsLava = makeDeath.SavedValue; });

@@ -99,6 +99,8 @@ namespace WaterMod
                             //ManNetwork.inst.SendToAllClients(WaterChange, new WaterChangeMessage() { Height = ServerWaterHeight }, ManNetwork.inst.MyPlayer.netId);
                             //Console.WriteLine("Sent new water height, changed to " + ServerWaterHeight.ToString());
                         }
+                        if (NetworkHandler.ServerLava != QPatch.TheWaterIsLava)
+                            NetworkHandler.ServerLava = QPatch.TheWaterIsLava;
                     }
                 }
                 catch { }
@@ -457,8 +459,10 @@ namespace WaterMod
                 defaultLava.SetInt("_SrcBlend", 5);
                 defaultLava.SetInt("_DstBlend", 10);
                 defaultLava.SetInt("_ZWrite", 0);
-                defaultLava.SetColor("_Color", new Color(1f, 0.6f, 0.2f, 0.79f));
-                defaultLava.SetColor("_EmissionColor", new Color(0.97f, 0.46f, 0.1f, 0.5f));
+                defaultLava.SetColor("_Color", new Color(1f, 0.5f, 0.2f, 0.79f));
+                //defaultLava.SetColor("_EmissionColor", new Color(0.97f, 0.46f, 0.1f, 0.5f));
+                defaultLava.SetColor("_EmissionColor", new Color(0.97f, 0.3f, 0.07f, 0.5f));
+ 
                 defaultLava.DisableKeyword("_ALPHATEST_ON");
                 defaultLava.EnableKeyword("_ALPHABLEND_ON");
                 defaultLava.DisableKeyword("_ALPHAPREMULTIPLY_ON");
@@ -582,11 +586,29 @@ namespace WaterMod
 
         public static void UpdateLook(WaterLook waterLook)
         {
-            if (waterLook.name == "Default" && QPatch.TheWaterIsLava)
-                surface.GetComponent<Renderer>().material = defaultLava;
+            if (QPatch.TheWaterIsLava)
+            {
+                //var lavaLook = waterLooks.Find(delegate (WaterLook look) { return look.name == "Default"; });
+                if (waterLook.name == "Fancy")
+                {
+                    Material lavaLook = new Material(waterLook.material);
+
+                    lavaLook.SetColor("_BaseColor", new Color(0.97f, 0.3f, 0.07f, lavaLook.GetColor("_BaseColor").a));
+                    lavaLook.SetColor("_RippleColor", new Color(1f, 0.6f, 0.2f, lavaLook.GetColor("_RippleColor").a));
+                    lavaLook.SetColor("_EmissionColor", new Color(0.97f, 0.46f, 0.1f, 0.5f));
+                    lavaLook.EnableKeyword("_EMISSION");
+
+                    surface.GetComponent<Renderer>().material = lavaLook;
+                }
+                else // Fancywaveless refuses to change for some reason
+                    surface.GetComponent<Renderer>().material = defaultLava;
+                surface.GetComponent<MeshFilter>().mesh = waterLook.mesh;
+            }
             else
+            {
                 surface.GetComponent<Renderer>().material = waterLook.material;
-            surface.GetComponent<MeshFilter>().mesh = waterLook.mesh;
+                surface.GetComponent<MeshFilter>().mesh = waterLook.mesh;
+            }
         }
 
 

@@ -495,7 +495,8 @@ namespace WaterMod
                 fancyWater.SetFloat("_RippleDensity", 0.25f);
                 fancyWater.SetFloat("_RippleCutoff", 3.5f);
                 fancyWater.SetFloat("_WaveAmplitude", 5f);
-                fancyWater.SetFloat("_Tessellation", 7.5f);
+                //fancyWater.SetFloat("_Tessellation", 7.5f);
+                fancyWater.SetFloat("_Tessellation", 4f);
 
                 Mesh fancyMesh = new Mesh();
                 fancyMesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;

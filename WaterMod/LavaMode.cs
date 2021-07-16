@@ -54,6 +54,15 @@ namespace WaterMod
                 catch { }
             }
         }
+        public static void ScreamLava()
+        {
+            Singleton.Manager<ManSFX>.inst.PlayMiscLoopingSFX(ManSFX.MiscSfxType.CabDetachKlaxon);
+            inst.Invoke("ShutTheFrontDoor", 2.6f);
+        }
+        public void ShutTheFrontDoor()
+        {
+            Singleton.Manager<ManSFX>.inst.StopMiscLoopingSFX(ManSFX.MiscSfxType.CabDetachKlaxon);
+        }
         internal class LavaDeathWarningGUI : MonoBehaviour
         {
             private Rect Window = new Rect(Display.main.renderingWidth / 2 - 100, (Display.main.renderingHeight - 75) / 2, 200, 155);
@@ -88,6 +97,7 @@ namespace WaterMod
                     if (GUI.Button(new Rect(100, 75, 80, 60), "<color=#f23d3dff>All Must\nPerish</color>"))
                     {
                         Singleton.Manager<ManSFX>.inst.PlayUISFX(ManSFX.UISfxType.Enter);
+                        ScreamLava();
                         QPatch.TheWaterIsLava = true;
                         try
                         {

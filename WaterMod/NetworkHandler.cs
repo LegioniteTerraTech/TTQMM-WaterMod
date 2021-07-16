@@ -105,7 +105,7 @@ namespace WaterMod
             serverLava = reader.IsLava;
             if (serverLava)
             {
-                Singleton.Manager<ManSFX>.inst.PlayMiscSFX(ManSFX.MiscSfxType.CabDetachKlaxon);
+                LavaMode.ScreamLava();
                 //Singleton.Manager<ManSFX>.inst.PlayUISFX(ManSFX.UISfxType.PayloadIncoming);
             }
             Console.WriteLine("Received new lava state, changing to " + serverLava.ToString());

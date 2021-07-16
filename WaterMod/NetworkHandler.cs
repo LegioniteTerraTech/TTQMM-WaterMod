@@ -108,6 +108,7 @@ namespace WaterMod
                 LavaMode.ScreamLava();
                 //Singleton.Manager<ManSFX>.inst.PlayUISFX(ManSFX.UISfxType.PayloadIncoming);
             }
+            WaterBuoyancy.UpdateLook(WaterBuoyancy.waterLooks[WaterBuoyancy.SelectedLook]);
             Console.WriteLine("Received new lava state, changing to " + serverLava.ToString());
         }
 

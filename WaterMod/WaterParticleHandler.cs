@@ -81,6 +81,11 @@ namespace WaterMod
             tex.LoadImage(File.ReadAllBytes(Path.Combine(QPatch.assets_path, "Splash.png")));
             tex.Apply();
             blurredMat.mainTexture = tex;
+            blurredMat.EnableKeyword("_EMISSION");
+            if (!QPatch.TheWaterIsLava)
+                blurredMat.SetColor("_EmissionColor", new Color(0.05f, 0.125f, 0.2f, 1f));
+            else
+                blurredMat.SetColor("_EmissionColor", new Color(0.97f, 0.3f, 0.07f, 0.5f));
         }
 
         private static void CreateSplash()
@@ -172,6 +177,32 @@ namespace WaterMod
             FXSurface = ps;
             ps.Stop();
             oSurface.AddComponent<SurfacePool.Item>();
+        }
+        public static void UpdateSplash()
+        {
+            var ps = oSplash.GetComponent<ParticleSystem>();
+
+            var c = ps.colorOverLifetime;
+            if (!QPatch.TheWaterIsLava)
+            {
+                c.color = WaterGradient;
+                blurredMat.SetColor("_EmissionColor", new Color(0.05f, 0.125f, 0.2f, 1f));
+            }
+            else
+            {
+                c.color = LavaGradient;
+                blurredMat.SetColor("_EmissionColor", new Color(0.97f, 0.3f, 0.07f, 0.5f));
+            }
+        }
+        public static void UpdateSurface()
+        {
+            var ps = oSurface.GetComponent<ParticleSystem>();
+
+            var c = ps.colorOverLifetime;
+            if (!QPatch.TheWaterIsLava)
+                c.color = WaterGradient;
+            else
+                c.color = LavaGradient;
         }
 
         public static void SplashAtPos(Vector3 pos, float Speed, float radius)

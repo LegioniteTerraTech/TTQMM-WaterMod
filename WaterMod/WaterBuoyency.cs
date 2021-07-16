@@ -610,6 +610,8 @@ namespace WaterMod
                 surface.GetComponent<Renderer>().material = waterLook.material;
                 surface.GetComponent<MeshFilter>().mesh = waterLook.mesh;
             }
+            WaterParticleHandler.UpdateSplash();
+            WaterParticleHandler.UpdateSurface();
         }
 
 

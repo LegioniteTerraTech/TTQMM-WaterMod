@@ -28,26 +28,30 @@ namespace WaterMod
             int removed = 0;
             foreach (Visible vis in Singleton.Manager<ManVisible>.inst.VisiblesTouchingRadius(Singleton.cameraTrans.position, 2500, new Bitfield<ObjectTypes>()))
             {
-                if (vis.resdisp.IsNotNull() && vis.centrePosition.y < QPatch.WaterHeight)
+                try
                 {
-                    switch (vis.resdisp.GetSceneryType())
-                    {   // lets see here, we remove trees that which exists
-                        case SceneryTypes.ConeTree:
-                        case SceneryTypes.DesertTree:
-                        case SceneryTypes.MountainTree:
-                        case SceneryTypes.ShroomTree:
-                            vis.resdisp.RemoveFromWorld(false, true, true, true);
-                            removed++;
-                            break;
+                    if (vis.resdisp.IsNotNull() && vis.centrePosition.y < QPatch.WaterHeight)
+                    {
+                        switch (vis.resdisp.GetSceneryType())
+                        {   // lets see here, we remove trees that which exists
+                            case SceneryTypes.ConeTree:
+                            case SceneryTypes.DesertTree:
+                            case SceneryTypes.MountainTree:
+                            case SceneryTypes.ShroomTree:
+                                vis.resdisp.RemoveFromWorld(false, true, true, true);
+                                removed++;
+                                break;
+                        }
                     }
                 }
+                catch { }
             }
             //Debug.Log("Water Mod: removed " + removed);
         }
 
         public void Update()
         {   // 
-            if (QPatch.DestroyTreesInWater)
+            if (QPatch.DestroyTreesInWater && (ManNetwork.IsHost || !ManNetwork.IsNetworked))
             {
                 if (clock > 100)
                 {

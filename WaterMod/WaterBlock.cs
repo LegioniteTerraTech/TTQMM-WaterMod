@@ -100,6 +100,9 @@ namespace WaterMod
 
         public void ApplySeparateForce()
         {
+            ApplyDamageIfLava(TankBlock.centreOfMassWorld);
+            if (!QPatch.EnableLooseBlocksFloat)
+                return;
             //Vector3 vector = TankBlock.centreOfMassWorld;
             float Submerge = WaterBuoyancy.HeightCalc - TankBlock.centreOfMassWorld.y - TankBlock.BlockCellBounds.extents.y;
             Submerge = Submerge * Mathf.Abs(Submerge) + WaterBuoyancy.SurfaceSkinning;
@@ -117,7 +120,6 @@ namespace WaterMod
                 Surface();
             }
             TankBlock.rbody.AddForce(Vector3.up * (Submerge * WaterBuoyancy.Density * 5f));
-            ApplyDamageIfLava(TankBlock.centreOfMassWorld);
         }
 
         public void ApplyConnectedForce()
@@ -146,6 +148,8 @@ namespace WaterMod
         {
             if (QPatch.TheWaterIsLava)
             {
+                if (TankBlock.GetComponent<ModuleAnchor>())
+                    return; // anchors are invulnerable to lava
                 TankBlock.damage.MultiplayerFakeDamagePulse();
                 if (LavaMode.DealPainThisFrame)
                 {

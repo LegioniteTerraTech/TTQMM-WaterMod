@@ -42,6 +42,7 @@ namespace WaterMod
         public static Material fancy;
 
         // Experimentals
+        public static bool EnableLooseBlocksFloat = true;
         public static bool DestroyTreesInWater = false;
         internal static bool WantsLava = false;
         /// <summary>
@@ -104,6 +105,7 @@ namespace WaterMod
             thisMod.BindConfig<WaterBuoyancy>(null, "SelectedLook");
             thisMod.BindConfig<WaterBuoyancy>(null, "AbyssDepth");
 
+            thisMod.BindConfig<QPatch>(null, "EnableLooseBlocksFloat");
             thisMod.BindConfig<QPatch>(null, "DestroyTreesInWater");
             thisMod.BindConfig<QPatch>(null, "theWaterIsLava");
 
@@ -130,6 +132,8 @@ namespace WaterMod
             Height = new OptionRange("Height level", ModName, WaterBuoyancy.Height, -75f, 100f, 1f);
             Height.onValueSaved.AddListener(() => { WaterBuoyancy.Height = Height.SavedValue; });
 
+            looseBlocksFloat = new OptionToggle("Loose Blocks float", ModName, EnableLooseBlocksFloat);
+            looseBlocksFloat.onValueSaved.AddListener(() => { EnableLooseBlocksFloat = looseBlocksFloat.SavedValue; });
             noTreesInWater = new OptionToggle("Destroy <b>[!FOREVER!]</b> Submerged Trees", ModName, DestroyTreesInWater);
             noTreesInWater.onValueSaved.AddListener(() => { DestroyTreesInWater = noTreesInWater.SavedValue; });
             makeDeath = new OptionToggle("but it's lava", ModName, theWaterIsLava);
@@ -190,6 +194,7 @@ namespace WaterMod
         public static OptionToggle UseParticleEffects;
         public static OptionRange Height;
 
+        public static OptionToggle looseBlocksFloat;
         public static OptionToggle noTreesInWater;
         public static OptionToggle makeDeath;
 

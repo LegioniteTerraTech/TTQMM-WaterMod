@@ -71,10 +71,11 @@ namespace WaterMod
         private bool ShowGUI = false;
         private WaterGUI waterGUI;
         public static GameObject surface;
+        internal static bool WorldMove = false;
 
         internal class WaterGUI : MonoBehaviour
         {
-            private Rect Window = new Rect(0, 0, 100, 75);
+            private Rect Window = new Rect(0, 0, 140, 75);
 
             private void OnGUI()
             {
@@ -88,7 +89,8 @@ namespace WaterMod
             private void GUIWindow(int ID)
             {
                 GUILayout.Label("Height: " + Height.ToString());
-                Height = GUILayout.HorizontalSlider(Height, -75f, 100f);
+                Height = Mathf.RoundToInt(GUILayout.HorizontalSlider(Height / 5, -15f, 20f)) * 5;
+
                 try
                 {
                     if (ManNetwork.inst.IsMultiplayer() && ManNetwork.IsHost)
@@ -165,6 +167,11 @@ namespace WaterMod
             }
             else
                 LavaMode.DealPainThisFrame = false;
+        }
+        private static void CompensateForTreadmill()
+        {
+            WaterBlock.InvertPrevForces();
+            WaterTank.UpdateAllReversed();
         }
 
         bool CameraSubmerged = false;
@@ -367,7 +374,17 @@ namespace WaterMod
 
         internal static void WorldShift()
         {
+            Debug.Log("World beginning shift");
             PistonHeart = !PistonHeart;
+            WorldMove = true;
+            CompensateForTreadmill();
+        }
+        internal static void WorldShiftEnd(IntVector3 vec)
+        {
+            WorldMove = false;
+            SurfacePool.TreadmillAll(vec);
+            //WaterBlock.MassApplyForces();
+            Debug.Log("World ended shift");
         }
 
         public static List<WaterLook> waterLooks = new List<WaterLook>();
@@ -376,6 +393,7 @@ namespace WaterMod
         public static void Initiate()
         {
             ManWorldTreadmill.inst.OnBeforeWorldOriginMove.Subscribe(WorldShift);
+            ManWorldTreadmill.inst.OnAfterWorldOriginMoved.Subscribe(WorldShiftEnd);
             try
             {
                 // WATER BASIC
@@ -566,6 +584,8 @@ namespace WaterMod
                 PhysicsCollider.AddComponent<BoxCollider>();
                 _inst.waterGUI = new GameObject().AddComponent<WaterGUI>();
                 _inst.waterGUI.gameObject.SetActive(false);
+
+                UpdateLook();
             }
             catch (Exception e)
             {
@@ -609,6 +629,34 @@ namespace WaterMod
             {
                 surface.GetComponent<Renderer>().material = waterLook.material;
                 surface.GetComponent<MeshFilter>().mesh = waterLook.mesh;
+            }
+            WaterParticleHandler.UpdateSplash();
+            WaterParticleHandler.UpdateSurface();
+        }
+        public static void UpdateLook()
+        {
+            if (QPatch.TheWaterIsLava)
+            {
+                //var lavaLook = waterLooks.Find(delegate (WaterLook look) { return look.name == "Default"; });
+                if (waterLooks[SelectedLook].name == "Fancy")
+                {
+                    Material lavaLook = new Material(waterLooks[SelectedLook].material);
+
+                    lavaLook.SetColor("_BaseColor", new Color(0.97f, 0.3f, 0.07f, lavaLook.GetColor("_BaseColor").a));
+                    lavaLook.SetColor("_RippleColor", new Color(1f, 0.6f, 0.2f, lavaLook.GetColor("_RippleColor").a));
+                    lavaLook.SetColor("_EmissionColor", new Color(0.97f, 0.46f, 0.1f, 0.5f));
+                    lavaLook.EnableKeyword("_EMISSION");
+
+                    surface.GetComponent<Renderer>().material = lavaLook;
+                }
+                else // Fancywaveless refuses to change for some reason
+                    surface.GetComponent<Renderer>().material = defaultLava;
+                surface.GetComponent<MeshFilter>().mesh = waterLooks[SelectedLook].mesh;
+            }
+            else
+            {
+                surface.GetComponent<Renderer>().material = waterLooks[SelectedLook].material;
+                surface.GetComponent<MeshFilter>().mesh = waterLooks[SelectedLook].mesh;
             }
             WaterParticleHandler.UpdateSplash();
             WaterParticleHandler.UpdateSurface();

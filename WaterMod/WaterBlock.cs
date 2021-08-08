@@ -1,4 +1,6 @@
-﻿using UnityEngine;
+﻿using System.Collections.Generic;
+using System;
+using UnityEngine;
 
 namespace WaterMod
 {
@@ -12,6 +14,32 @@ namespace WaterMod
         bool surfaceExist = false;
         private byte heartBeat = 0;
         public TankBlock TankBlock;
+
+        private static bool processing = false;
+        private bool inWater = false;
+        private bool InWater
+        {
+            get
+            {
+                return inWater;
+            }
+            set
+            {
+                if (!processing && inWater != value)
+                {
+                    if (value)
+                    {
+                        submerged.Add(this);
+                    }
+                    else
+                    {
+                        submerged.Remove(this);
+                    }
+                }
+                inWater = value;
+            }
+        }
+        private static List<WaterBlock> submerged = new List<WaterBlock>();
 
         private void Surface()
         {
@@ -32,11 +60,11 @@ namespace WaterMod
             }
         }
 
-        public void TryRemoveSurface()
+        public void TryRemoveSurface(bool immedeate = false)
         {
             if (surfaceExist && surface != null)
             {
-                SurfacePool.ReturnToPool(surface);
+                SurfacePool.ReturnToPool(surface, immedeate);
                 surface = null;
                 surfaceExist = false;
             }
@@ -97,8 +125,71 @@ namespace WaterMod
                 Debug.Log((watertank == null ? "WaterTank is null..." + (TankBlock.tank == null ? " And so is the tank" : "The tank is not") : "WaterTank exists") + (TankBlock.rbody == null ? "\nTankBlock Rigidbody is null" : "\nWhat?") + (TankBlock.IsAttached ? "\nThe block appears to be attached" : "\nThe block is not attached"));
             }
         }
+        public static void InvertPrevForces()
+        {
+            Debug.Log("Firing InvertPrevForces");
+            processing = true;
+            try
+            {
+                int firedCount = 0;
+                foreach (WaterBlock block in submerged)
+                {
+                    if (block.TankBlock.tank != null)
+                    {
+                        if (block.watertank == null || block.watertank.tank != block.TankBlock.tank)
+                        {
+                            block.watertank = block.TankBlock.tank.GetComponent<WaterTank>();
+                        }
+                        block.ApplyConnectedForce(true);
+                        continue;
+                    }
+                    if (block.TankBlock.rbody != null)
+                    {
+                        block.ApplySeparateForce(true);
+                    }
+                    firedCount++;
+                }
+                Debug.Log("Undid " + firedCount + " forces");
+            }
+            catch (Exception e)
+            {
+                Debug.Log("Error on handling invert forces - " + e);
+            }
+            processing = false;
+        }
+        public static void MassApplyForces()
+        {
+            processing = true;
+            try
+            {
+                int firedCount = 0;
+                foreach (WaterBlock block in submerged)
+                {
+                    if (block.TankBlock.tank != null)
+                    {
+                        if (block.watertank == null || block.watertank.tank != block.TankBlock.tank)
+                        {
+                            block.watertank = block.TankBlock.tank.GetComponent<WaterTank>();
+                        }
+                        block.ApplyConnectedForce();
+                        continue;
+                    }
+                    if (block.TankBlock.rbody != null)
+                    {
+                        block.ApplySeparateForce();
+                    }
+                    firedCount++;
+                }
+                Debug.Log("Redid " + firedCount + " forces");
+            }
+            catch
+            {
+                Debug.Log("Error on handling return forces");
+            }
+            processing = false;
+        }
 
-        public void ApplySeparateForce()
+        public void ApplySeparateForce(bool invert = false)
         {
             ApplyDamageIfLava(TankBlock.centreOfMassWorld);
             if (!QPatch.EnableLooseBlocksFloat)
@@ -108,7 +199,7 @@ namespace WaterMod
             Submerge = Submerge * Mathf.Abs(Submerge) + WaterBuoyancy.SurfaceSkinning;
             if (Submerge > 1.5f)
             {
-                TryRemoveSurface();
+                TryRemoveSurface(invert);
                 Submerge = 1.5f;
             }
             else if (Submerge < -0.2f)
@@ -119,22 +210,25 @@ namespace WaterMod
             {
                 Surface();
             }
-            TankBlock.rbody.AddForce(Vector3.up * (Submerge * WaterBuoyancy.Density * 5f));
+            if (invert)
+                TankBlock.rbody.AddForce(Vector3.down * (Submerge * WaterBuoyancy.Density * 5f));
+            else
+                TankBlock.rbody.AddForce(Vector3.up * (Submerge * WaterBuoyancy.Density * 5f));
         }
 
-        public void ApplyConnectedForce()
+        public void ApplyConnectedForce(bool invert = false)
         {
             IntVector3[] intVector = TankBlock.filledCells;
             int CellCount = intVector.Length;
             if (CellCount == 1)
             {
-                ApplyConnectedForce_Internal(TankBlock.centreOfMassWorld);
+                ApplyConnectedForce_Internal(TankBlock.centreOfMassWorld, invert);
             }
             else
             {
                 for (int CellIndex = 0; CellIndex < CellCount; CellIndex++)
                 {
-                    ApplyConnectedForce_Internal(transform.TransformPoint(intVector[CellIndex].x, intVector[CellIndex].y, intVector[CellIndex].z));
+                    ApplyConnectedForce_Internal(transform.TransformPoint(intVector[CellIndex].x, intVector[CellIndex].y, intVector[CellIndex].z), invert);
                 }
             }
             if (this.isFanJet)
@@ -165,7 +259,7 @@ namespace WaterMod
             }
         }
 
-        private void ApplyConnectedForce_Internal(Vector3 vector)
+        private void ApplyConnectedForce_Internal(Vector3 vector, bool invert = false)
         {
             float Submerge = WaterBuoyancy.HeightCalc - vector.y;
             Submerge = Submerge * Mathf.Abs(Submerge) + WaterBuoyancy.SurfaceSkinning;
@@ -174,19 +268,26 @@ namespace WaterMod
                 if (Submerge > 1.5f)
                 {
                     watertank.AddGeneralBuoyancy(vector);
-                    TryRemoveSurface();
+                    TryRemoveSurface(invert);
                     return;
                 }
                 else if (Submerge < -0.2f)
                 {
                     Submerge = -0.2f;
+                    InWater = false;
                 }
                 else
                 {
                     Surface();
                     watertank.AddSurface(vector);
                 }
-                watertank.tank.rbody.AddForceAtPosition(Vector3.up * (Submerge * WaterBuoyancy.Density * 5f), vector);
+                if (invert)
+                    watertank.tank.rbody.AddForceAtPosition(Vector3.down * (Submerge * WaterBuoyancy.Density * 5f), vector);
+                else
+                {
+                    watertank.tank.rbody.AddForceAtPosition(Vector3.up * (Submerge * WaterBuoyancy.Density * 5f), vector);
+                    InWater = true;
+                }
             }
         }
 

@@ -73,24 +73,29 @@ namespace WaterMod
                             break;
 
                         case EffectTypes.ResourceChunk:
-                            float num2 = WaterBuoyancy.HeightCalc - _rbody.position.y;
-                            num2 = num2 * Mathf.Abs(num2) + WaterBuoyancy.SurfaceSkinning;
-                            if (num2 >= -0.5f)
+                            if (QPatch.EnableLooseBlocksFloat)
                             {
-                                if (num2 > 1.5f)
+                                if (WaterBuoyancy.WorldMove)
+                                    return; // the world is treadmilling and we must ignore the delayed physics update to prevent fling
+                                float num2 = WaterBuoyancy.HeightCalc - _rbody.position.y;
+                                num2 = num2 * Mathf.Abs(num2) + WaterBuoyancy.SurfaceSkinning;
+                                if (num2 >= -0.5f)
                                 {
-                                    num2 = 1.5f;
-                                }
+                                    if (num2 > 1.5f)
+                                    {
+                                        num2 = 1.5f;
+                                    }
 
-                                if (num2 < -0.1f)
-                                {
-                                    num2 = -0.1f;
+                                    if (num2 < -0.1f)
+                                    {
+                                        num2 = -0.1f;
+                                    }
+                                    _rbody.AddForce(Vector3.up * WaterBuoyancy.Density * num2 * WaterBuoyancy.ResourceBuoyancyMultiplier, ForceMode.Force);
+                                    if (QPatch.TheWaterIsLava)
+                                        _rbody.velocity -= (_rbody.velocity * _rbody.velocity.magnitude * (1f - WaterBuoyancy.Density / 10000f)) * 0.0075f;
+                                    else
+                                        _rbody.velocity -= (_rbody.velocity * _rbody.velocity.magnitude * (1f - WaterBuoyancy.Density / 10000f)) * 0.0025f;
                                 }
-                                _rbody.AddForce(Vector3.up * WaterBuoyancy.Density * num2 * WaterBuoyancy.ResourceBuoyancyMultiplier, ForceMode.Force);
-                                if (QPatch.TheWaterIsLava)
-                                    _rbody.velocity -= (_rbody.velocity * _rbody.velocity.magnitude * (1f - WaterBuoyancy.Density / 10000f)) * 0.0075f;
-                                else
-                                    _rbody.velocity -= (_rbody.velocity * _rbody.velocity.magnitude * (1f - WaterBuoyancy.Density / 10000f)) * 0.0025f;
                             }
                             break;
 

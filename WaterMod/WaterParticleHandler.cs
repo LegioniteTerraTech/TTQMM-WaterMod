@@ -46,6 +46,7 @@ namespace WaterMod
                     mode = GradientMode.Blend
                 });
 
+
         public static void Initialize()
         {
             FXFolder = new GameObject("WaterModFX");
@@ -81,6 +82,9 @@ namespace WaterMod
             tex.LoadImage(File.ReadAllBytes(Path.Combine(QPatch.assets_path, "Splash.png")));
             tex.Apply();
             blurredMat.mainTexture = tex;
+            blurredMat.EnableKeyword("_ALPHATEST_ON");
+            blurredMat.DisableKeyword("_ALPHABLEND_ON");
+            blurredMat.DisableKeyword("_ALPHAPREMULTIPLY_ON");
             blurredMat.EnableKeyword("_EMISSION");
             if (!QPatch.TheWaterIsLava)
                 blurredMat.SetColor("_EmissionColor", new Color(0.05f, 0.125f, 0.2f, 1f));
@@ -169,10 +173,12 @@ namespace WaterMod
             v.enabled = true;
             v.y = 0.25f;
 
+
             var r = ps.GetComponent<ParticleSystemRenderer>();
             r.renderMode = ParticleSystemRenderMode.HorizontalBillboard;
             r.material = blurredMat;
             r.maxParticleSize = 20f;
+            r.sortingOrder = -1;//Make the effects appear correctly
 
             FXSurface = ps;
             ps.Stop();
@@ -193,6 +199,7 @@ namespace WaterMod
                 c.color = LavaGradient;
                 blurredMat.SetColor("_EmissionColor", new Color(0.97f, 0.3f, 0.07f, 0.5f));
             }
+            FXSplash = ps;
         }
         public static void UpdateSurface()
         {
@@ -203,6 +210,7 @@ namespace WaterMod
                 c.color = WaterGradient;
             else
                 c.color = LavaGradient;
+            FXSurface = ps;
         }
 
         public static void SplashAtPos(Vector3 pos, float Speed, float radius)
@@ -225,6 +233,7 @@ namespace WaterMod
     {
         public static bool CanGrow = true;
         public static int MaxGrow = 500;
+        private static List<Item> AllList;
         private static List<Item> FreeList;
         public static int Count { get; private set; }
         public static int Available { get; set; }
@@ -233,6 +242,7 @@ namespace WaterMod
         {
             Count = 0;
             Available = 0;
+            AllList = new List<Item>();
             FreeList = new List<Item>();
         }
 
@@ -255,12 +265,43 @@ namespace WaterMod
             return ps2;
         }
 
-        public static void ReturnToPool(Item surface)
+        public static void ReturnToPool(Item surface, bool Now = false)
         {
+            if (Now)
+                surface.gameObject.GetComponent<ParticleSystem>().Clear();
             surface.GetComponent<ParticleSystem>().Stop();
             SurfacePool.Available++;
             SurfacePool.FreeList.Add(surface);
             surface.SetDestroy();
+        }
+        public static void TreadmillAll(Vector3 toChange)
+        {   // cannot get this to work - too technical
+            /*
+            Debug.Log("Firing TreadmillAll");
+            int firedtimes = 0;
+            foreach (Item item in AllList)
+            {   // There's still remaining particles - cannot fix them all as there's invalid ones.
+                item.transform.position += toChange;
+                try
+                {
+                    //item.gameObject.GetComponent<ParticleSystem>().Clear();
+                    var particle = new ParticleSystem.Particle[item.gameObject.GetComponent<ParticleSystem>().main.maxParticles];
+                    var count = item.gameObject.GetComponent<ParticleSystem>().GetParticles(particle);
+                    for (int step = 0; step < count; step++)
+                    {
+                        particle[step].position += toChange;
+                    }
+
+                    item.gameObject.GetComponent<ParticleSystem>().SetParticles(particle, count);
+                }
+                catch
+                {
+                    Debug.Log("TreadmillAll failed on case " + firedtimes);
+                }
+                firedtimes++;
+            }
+            Debug.Log("TreadmillAll fired " + firedtimes + " times");
+            */
         }
 
         private static Item CreateNew(bool SetActive = false)
@@ -284,19 +325,24 @@ namespace WaterMod
             private void Destroy()
             {
                 if (!Using)
+                {
+                    AllList.Remove(this);
+                    gameObject.GetComponent<ParticleSystem>().Clear();
                     gameObject.SetActive(false);
+                }
             }
 
             public void UpdatePos(Vector3 position)
             {
                 Using = true;
-                transform.position = position;
+                transform.position = position + (Vector3.down * 0.15f);// keep it at the water level
             }
 
             public void StartUsing()
             {
                 Using = true;
                 gameObject.SetActive(true);
+                AllList.Add(this);
                 gameObject.GetComponent<ParticleSystem>().Play();
             }
         }

@@ -132,7 +132,7 @@ namespace WaterMod
             Height = new OptionRange("Height level", ModName, WaterBuoyancy.Height, -75f, 100f, 1f);
             Height.onValueSaved.AddListener(() => { WaterBuoyancy.Height = Height.SavedValue; });
 
-            looseBlocksFloat = new OptionToggle("Loose Blocks float", ModName, EnableLooseBlocksFloat);
+            looseBlocksFloat = new OptionToggle("Loose Blocks and Chunks float", ModName, EnableLooseBlocksFloat);
             looseBlocksFloat.onValueSaved.AddListener(() => { EnableLooseBlocksFloat = looseBlocksFloat.SavedValue; });
             noTreesInWater = new OptionToggle("Destroy <b>[!FOREVER!]</b> Submerged Trees", ModName, DestroyTreesInWater);
             noTreesInWater.onValueSaved.AddListener(() => { DestroyTreesInWater = noTreesInWater.SavedValue; });
@@ -171,7 +171,6 @@ namespace WaterMod
                 WaterBuoyancy.UpdateLook(waterLook.Selected);
                 WaterBuoyancy.SelectedLook = waterLook.SavedValue;
             });
-            WaterBuoyancy.UpdateLook(WaterBuoyancy.waterLooks[WaterBuoyancy.SelectedLook]);
 
             var waterAbyssDepth = new OptionRange("Abyss depth", WaterLook, WaterBuoyancy.AbyssDepth);
             waterAbyssDepth.onValueSaved.AddListener(() => { WaterBuoyancy.AbyssDepth = waterAbyssDepth.SavedValue; });

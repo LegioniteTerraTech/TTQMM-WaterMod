@@ -109,7 +109,7 @@ namespace WaterMod
                             }
                         }
                         catch { }
-                        WaterBuoyancy.UpdateLook(WaterBuoyancy.waterLooks[WaterBuoyancy.SelectedLook]);
+                        WaterBuoyancy.UpdateLook();
                         WaterBuoyancy._inst.Save();
                         gameObject.SetActive(false);
                     }

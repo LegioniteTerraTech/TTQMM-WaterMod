@@ -233,7 +233,6 @@ namespace WaterMod
     {
         public static bool CanGrow = true;
         public static int MaxGrow = 500;
-        private static List<Item> AllList;
         private static List<Item> FreeList;
         public static int Count { get; private set; }
         public static int Available { get; set; }
@@ -242,7 +241,6 @@ namespace WaterMod
         {
             Count = 0;
             Available = 0;
-            AllList = new List<Item>();
             FreeList = new List<Item>();
         }
 
@@ -274,34 +272,8 @@ namespace WaterMod
             SurfacePool.FreeList.Add(surface);
             surface.SetDestroy();
         }
-        public static void TreadmillAll(Vector3 toChange)
+        public static void TreadmillAllParticles(Vector3 toChange)
         {   // cannot get this to work - too technical
-            /*
-            Debug.Log("Firing TreadmillAll");
-            int firedtimes = 0;
-            foreach (Item item in AllList)
-            {   // There's still remaining particles - cannot fix them all as there's invalid ones.
-                item.transform.position += toChange;
-                try
-                {
-                    //item.gameObject.GetComponent<ParticleSystem>().Clear();
-                    var particle = new ParticleSystem.Particle[item.gameObject.GetComponent<ParticleSystem>().main.maxParticles];
-                    var count = item.gameObject.GetComponent<ParticleSystem>().GetParticles(particle);
-                    for (int step = 0; step < count; step++)
-                    {
-                        particle[step].position += toChange;
-                    }
-
-                    item.gameObject.GetComponent<ParticleSystem>().SetParticles(particle, count);
-                }
-                catch
-                {
-                    Debug.Log("TreadmillAll failed on case " + firedtimes);
-                }
-                firedtimes++;
-            }
-            Debug.Log("TreadmillAll fired " + firedtimes + " times");
-            */
         }
 
         private static Item CreateNew(bool SetActive = false)
@@ -326,7 +298,7 @@ namespace WaterMod
             {
                 if (!Using)
                 {
-                    AllList.Remove(this);
+                    //AllList.Remove(this);
                     gameObject.GetComponent<ParticleSystem>().Clear();
                     gameObject.SetActive(false);
                 }
@@ -342,7 +314,6 @@ namespace WaterMod
             {
                 Using = true;
                 gameObject.SetActive(true);
-                AllList.Add(this);
                 gameObject.GetComponent<ParticleSystem>().Play();
             }
         }

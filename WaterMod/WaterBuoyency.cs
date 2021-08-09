@@ -382,7 +382,7 @@ namespace WaterMod
         internal static void WorldShiftEnd(IntVector3 vec)
         {
             WorldMove = false;
-            SurfacePool.TreadmillAll(vec);
+            SurfacePool.TreadmillAllParticles(vec);
             //WaterBlock.MassApplyForces();
             Debug.Log("World ended shift");
         }

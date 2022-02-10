@@ -14,8 +14,19 @@ namespace WaterMod
         public static Texture2D CameraFilter;
         public static Texture2D CameraFilterLava;
 
-        public static float Height = -25f,
-            FanJetMultiplier = 1.75f,
+        public static float Height
+        {
+            get { return height; }
+            set
+            {
+                UpdateHeightCalc();
+                height = value;
+            }
+        }
+        public static float height = -25f;
+
+
+        public static float FanJetMultiplier = 1.75f,
             ResourceBuoyancyMultiplier = 1.2f,
             BulletDampener = 1E-06f,
             LaserFraction = 0.275f,
@@ -28,8 +39,18 @@ namespace WaterMod
             RainWeightMultiplier = 0.06f,
             RainDrainMultiplier = 0.06f,
             FloodChangeClamp = 0.002f,
-            FloodHeightMultiplier = 15f,
             AbyssDepth = 50f;
+
+        public static float FloodHeightMultiplier
+        {
+            get { return floodHeightMultiplier; }
+            set
+            {
+                UpdateHeightCalc();
+                floodHeightMultiplier = value;
+            }
+        }
+        public static float floodHeightMultiplier = 15f;
 
         public static int SelectedLook = 0;
 
@@ -57,12 +78,23 @@ namespace WaterMod
                 }
                 else
                 {
-                    return Height + (RainFlood * FloodHeightMultiplier);
+                    return heightCalc;
                 }
             }
         }
+        public static float heightCalc = -25;
 
-        public static float RainFlood = 0f;
+        public static float RainFlood {
+            get { return rainFlood; }
+            set 
+            {
+                UpdateHeightCalc();
+                rainFlood = value;
+            }
+        }
+
+        private static float rainFlood = 0f;
+
         public static float Density = 8;
         public byte heartBeat;
         public static WaterBuoyancy _inst;
@@ -120,6 +152,12 @@ namespace WaterMod
 
 
         internal bool Heart = false;
+
+        internal static void UpdateHeightCalc()
+        {
+            heightCalc = height + (rainFlood * floodHeightMultiplier);
+        }
+
         private void OnTriggerStay(Collider collider)
         {
             if (Heart != PistonHeart)

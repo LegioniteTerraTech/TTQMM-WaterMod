@@ -2,7 +2,7 @@
 
 namespace WaterMod
 {
-    public class WaterEffect : MonoBehaviour
+    internal class WaterEffect : MonoBehaviour
     {
         public virtual void Ent(byte HeartBeat)
         {

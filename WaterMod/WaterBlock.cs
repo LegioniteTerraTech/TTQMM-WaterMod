@@ -4,7 +4,14 @@ using UnityEngine;
 
 namespace WaterMod
 {
-    public class WaterBlock : WaterEffect
+    /*
+     * NEW Plans: Optimize water
+     * Make a 3D matrix of 
+     * 
+     * 
+     * 
+     */
+    internal class WaterBlock : WaterEffect
     {
         public WaterTank watertank;
         public bool isFanJet;
@@ -14,6 +21,9 @@ namespace WaterMod
         bool surfaceExist = false;
         private byte heartBeat = 0;
         public TankBlock TankBlock;
+        private float Submerge = 0;
+
+        private static float cachedFloatVal = WaterBuoyancy.Density * 5f;
 
         private static bool processing = false;
         private bool inWater = false;
@@ -102,6 +112,7 @@ namespace WaterMod
             heartBeat = HeartBeat;
             try
             {
+                cachedFloatVal = WaterBuoyancy.Density * 5f;
                 if (TankBlock.tank != null)
                 {
                     if (watertank == null || watertank.tank != TankBlock.tank)
@@ -128,6 +139,8 @@ namespace WaterMod
         public static void InvertPrevForces()
         {
             Debug.Log("Firing InvertPrevForces");
+            if (Singleton.Manager<ManSpawn>.inst.IsTechSpawning)
+                return; // Do not invert on world load!
             processing = true;
             try
             {
@@ -211,15 +224,16 @@ namespace WaterMod
                 Surface();
             }
             if (invert)
-                TankBlock.rbody.AddForce(Vector3.down * (Submerge * WaterBuoyancy.Density * 5f));
+                TankBlock.rbody.AddForce(Vector3.down * (Submerge * cachedFloatVal * TankBlock.filledCells.Length));
             else
-                TankBlock.rbody.AddForce(Vector3.up * (Submerge * WaterBuoyancy.Density * 5f));
+                TankBlock.rbody.AddForce(Vector3.up * (Submerge * cachedFloatVal * TankBlock.filledCells.Length));
         }
 
         public void ApplyConnectedForce(bool invert = false)
         {
             IntVector3[] intVector = TankBlock.filledCells;
             int CellCount = intVector.Length;
+            InWater = false;
             if (CellCount == 1)
             {
                 ApplyConnectedForce_Internal(TankBlock.centreOfMassWorld, invert);
@@ -240,13 +254,13 @@ namespace WaterMod
 
         private void ApplyDamageIfLava(Vector3 vector)
         {
-            if (QPatch.TheWaterIsLava)
+            if (QPatch.TheWaterIsLava && ManNetwork.IsHost)
             {
                 if (TankBlock.GetComponent<ModuleAnchor>())
                     return; // anchors are invulnerable to lava
-                TankBlock.damage.MultiplayerFakeDamagePulse();
                 if (LavaMode.DealPainThisFrame)
                 {
+                    TankBlock.damage.MultiplayerFakeDamagePulse();
                     float Submerge = WaterBuoyancy.HeightCalc - vector.y;
                     Submerge = Submerge * Mathf.Abs(Submerge) + WaterBuoyancy.SurfaceSkinning;
                     if (Submerge > 1.5f)
@@ -274,7 +288,6 @@ namespace WaterMod
                 else if (Submerge < -0.2f)
                 {
                     Submerge = -0.2f;
-                    InWater = false;
                 }
                 else
                 {
@@ -282,10 +295,10 @@ namespace WaterMod
                     watertank.AddSurface(vector);
                 }
                 if (invert)
-                    watertank.tank.rbody.AddForceAtPosition(Vector3.down * (Submerge * WaterBuoyancy.Density * 5f), vector);
+                    watertank.tank.rbody.AddForceAtPosition(Vector3.down * (Submerge * cachedFloatVal), vector);
                 else
                 {
-                    watertank.tank.rbody.AddForceAtPosition(Vector3.up * (Submerge * WaterBuoyancy.Density * 5f), vector);
+                    watertank.tank.rbody.AddForceAtPosition(Vector3.up * (Submerge * cachedFloatVal), vector);
                     InWater = true;
                 }
             }

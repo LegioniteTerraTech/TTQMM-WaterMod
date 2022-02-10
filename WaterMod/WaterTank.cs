@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using System.Collections.Generic;
+using UnityEngine;
 
 namespace WaterMod
 {
@@ -39,6 +40,192 @@ namespace WaterMod
             tankblock.GetComponent<WaterBlock>().watertank = null;
         }
 
+        /*
+        private int allBlocksBelow = 0;
+        // Get ALL blocks below water level
+        public int UpdateBlocksBelow()
+        {
+            int allBlocksBelow = 0;
+
+            BlockManager.TableCache TC = tank.blockman.GetTableCacheForPlacementCollection();
+            List<IntVector3> allBlockPos = new List<IntVector3>();
+            float upperRange = WaterBuoyancy.HeightCalc + 0.7071f;
+            float lowerRange = WaterBuoyancy.HeightCalc - 0.7071f;
+            List<TankBlock> blocksAtWaterline = new List<TankBlock>();
+
+            for (int stepX = 0; stepX < TC.size; stepX++)
+            {
+                for (int stepZ = 0; stepZ < TC.size; stepZ++)
+                {
+                    for (int stepZ = 0; stepZ < TC.size; stepZ++)
+                    {
+                        Vector3 worldPos = transform.TransformPoint(new Vector3(stepX, stepY, stepZ));
+                        if (worldPos.y > upperRange ||
+                            !TC.blockTable[stepX, stepY, stepZ])
+                        {
+                            continue;
+                        }
+                        else if (worldPos.y < lowerRange)
+                        {
+                            allBlocksBelow++;
+                        }
+                        else
+                        {
+                            TankBlock.
+                            public void ApplyConnectedForce(bool invert = false)
+                            blocksAtWaterline++;
+                        }
+                    }
+                }
+            }
+            foreach (TankBlock TB in TankBlock)
+            transform.up;
+            WaterBuoyancy.HeightCalc
+        }
+        private int RunWithinWater(BlockManager.TableCache TC, Vector3 pos)
+        {
+            int octPartition = 2;
+            int blocksBelowWaterline = 0;
+            if (BranchSize == 1)
+            {
+                Vector3 worldPos = transform.TransformPoint(new Vector3(stepX, stepY, stepZ));
+                if (worldPos.y > upperRange ||
+                    !TC.blockTable[stepX, stepY, stepZ])
+                {
+                    continue;
+                }
+                else if (worldPos.y < lowerRange)
+                {
+                    blocksBelowWaterline++;
+                }
+                else
+                {
+                    TankBlock.
+                            public void ApplyConnectedForce(bool invert = false)
+                            blocksAtWaterline++;
+                }
+            }
+
+            List<IntVector3> allBlockPos = new List<IntVector3>();
+            float distDev = (float)TC.size * 1.732f;
+            float upperRange = WaterBuoyancy.HeightCalc + distDev;
+            float lowerRange = WaterBuoyancy.HeightCalc - distDev;
+            List<TankBlock> blocksAtWaterline = new List<TankBlock>();
+            Vector3 worldPos = pos;
+            if (worldPos < )
+            {
+            }
+            else
+            {   // We are not in water 
+            }
+        }
+        private List<TankBlock> RunWithinWaterBranch(BlockManager.TableCache TC, Vector3 pos, int BranchSize, int partitions)
+        {
+            int blocksBelowWaterline = 0;
+            if (BranchSize < partitions)
+            {
+                Vector3 worldPos = transform.TransformPoint(new Vector3(stepX, stepY, stepZ));
+                if (worldPos.y > upperRange ||
+                    !TC.blockTable[stepX, stepY, stepZ])
+                {
+                    continue;
+                }
+                else if (worldPos.y < lowerRange)
+                {
+                    blocksBelowWaterline++;
+                }
+                else
+                {
+                    TankBlock.
+                            public void ApplyConnectedForce(bool invert = false)
+                            blocksAtWaterline++;
+                }
+            }
+            List<IntVector3> allBlockPos = new List<IntVector3>();
+            float distDev = (float)TC.size * 1.732f;
+            float upperRange = WaterBuoyancy.HeightCalc + distDev;
+            float lowerRange = WaterBuoyancy.HeightCalc - distDev;
+            List<TankBlock> blocksAtWaterline = new List<TankBlock>();
+            float partitionOffset = (TC.size / partitions) / 2;
+            float partitionSpacing = BranchSize / partitions;
+
+            for (int stepX = 0; stepX < partitions; stepX++)
+            {
+                for (int stepY = 0; stepY < partitions; stepY++)
+                {
+                    for (int stepZ = 0; stepZ < partitions; stepZ++)
+                    {
+                        float localPosX = partitionOffset + (partitionSpacing * stepX);
+                        float localPosY = partitionOffset + (partitionSpacing * stepY);
+                        float localPosZ = partitionOffset + (partitionSpacing * stepZ);
+                        Vector3 worldPos = transform.TransformPoint(new Vector3(localPosX, localPosY, localPosZ));
+                        if (worldPos.y > upperRange ||
+                            !TC.blockTable[stepX, stepY, stepZ])
+                        {
+                            continue;
+                        }
+                        else if (worldPos.y < lowerRange)
+                        {
+                            blocksBelowWaterline++;
+                        }
+                        else
+                        {
+                            TankBlock.
+                            public void ApplyConnectedForce(bool invert = false)
+                        }
+                    }
+                }
+            }
+        }
+
+        private int UpdateBlocksBelowTree(IntVector3 partition)
+        {
+            int blocksBelowWaterline = 0;
+
+            BlockManager.TableCache TC = tank.blockman.GetTableCacheForPlacementCollection();
+            List<IntVector3> allBlockPos = new List<IntVector3>();
+            float upperRange = WaterBuoyancy.HeightCalc + 0.7071f;
+            float lowerRange = WaterBuoyancy.HeightCalc - 0.7071f;
+            List<TankBlock> blocksAtWaterline = new List<TankBlock>();
+
+            for (int stepX = 0; stepX < TC.size; stepX++)
+            {
+                for (int stepZ = 0; stepZ < TC.size; stepZ++)
+                {
+                    for (int stepZ = 0; stepZ < TC.size; stepZ++)
+                    {
+                        Vector3 worldPos = transform.TransformPoint(new Vector3(stepX, stepY, stepZ));
+                        if (worldPos.y > upperRange ||
+                            !TC.blockTable[stepX, stepY, stepZ])
+                        {
+                            continue;
+                        }
+                        else if (worldPos.y < lowerRange)
+                        {
+                            blocksBelowWaterline++;
+                        }
+                        else
+                        {
+                            TankBlock.
+                            public void ApplyConnectedForce(bool invert = false)
+                            blocksAtWaterline++;
+                        }
+                    }
+                }
+            }
+            foreach (TankBlock TB in TankBlock)
+                transform.up;
+            WaterBuoyancy.HeightCalc
+        }
+
+        // Get Blocks that are partially floating
+        public int EvaluateBuoyency()
+        {
+            transform.up;
+            WaterBuoyancy.HeightCalc
+        }
+        */
+
         public void FixedUpdate()
         {
             if (WaterBuoyancy.WorldMove)
@@ -70,12 +257,16 @@ namespace WaterMod
             {
                 try
                 {
-                    tank.GetComponent<WaterTank>().InvertedUpdate();
+                    if (!tank.FirstUpdateAfterSpawn)
+                        tank.GetComponent<WaterTank>().InvertedUpdate();
                 }
                 catch { }
             }
         }
 
+        /// <summary>
+        /// Compensate for WorldTreadmill
+        /// </summary>
         public void InvertedUpdate()
         {
             if (SubmergeCount != 0)

@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace WaterMod
 {
-    public class WaterObj : WaterEffect
+    internal class WaterObj : WaterEffect
     {
         public WaterObj()
         {
@@ -90,11 +90,12 @@ namespace WaterMod
                                     {
                                         num2 = -0.1f;
                                     }
-                                    _rbody.AddForce(Vector3.up * WaterBuoyancy.Density * num2 * WaterBuoyancy.ResourceBuoyancyMultiplier, ForceMode.Force);
+                                    Vector3 velo = Vector3.up * WaterBuoyancy.Density * num2 * WaterBuoyancy.ResourceBuoyancyMultiplier;
                                     if (QPatch.TheWaterIsLava)
-                                        _rbody.velocity -= (_rbody.velocity * _rbody.velocity.magnitude * (1f - WaterBuoyancy.Density / 10000f)) * 0.0075f;
+                                        velo -= (_rbody.velocity * _rbody.velocity.magnitude * (1f - WaterBuoyancy.Density / 10000f)) * 0.0075f;
                                     else
-                                        _rbody.velocity -= (_rbody.velocity * _rbody.velocity.magnitude * (1f - WaterBuoyancy.Density / 10000f)) * 0.0025f;
+                                        velo -= (_rbody.velocity * _rbody.velocity.magnitude * (1f - WaterBuoyancy.Density / 10000f)) * 0.0025f;
+                                    _rbody.AddForce(velo, ForceMode.Force);
                                 }
                             }
                             break;

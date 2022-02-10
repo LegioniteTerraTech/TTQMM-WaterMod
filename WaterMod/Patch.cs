@@ -42,6 +42,8 @@ namespace WaterMod
         public static Material fancy;
 
         // Experimentals
+        public static bool HeightBasedFloat = true;
+
         public static bool EnableLooseBlocksFloat = true;
         public static bool DestroyTreesInWater = false;
         internal static bool WantsLava = false;
@@ -90,7 +92,7 @@ namespace WaterMod
             thisMod.BindConfig<QPatch>(null, "key_int");
             key = (KeyCode)key_int;
             thisMod.BindConfig<WaterBuoyancy>(null, "IsActive");
-            thisMod.BindConfig<WaterBuoyancy>(null, "Height");
+            thisMod.BindConfig<WaterBuoyancy>(null, "height");
             thisMod.BindConfig<WaterBuoyancy>(null, "Density");
             thisMod.BindConfig<WaterBuoyancy>(null, "FanJetMultiplier");
             thisMod.BindConfig<WaterBuoyancy>(null, "ResourceBuoyancyMultiplier");
@@ -116,7 +118,7 @@ namespace WaterMod
                 thisMod.BindConfig<WaterBuoyancy>(null, "RainWeightMultiplier");
                 thisMod.BindConfig<WaterBuoyancy>(null, "RainDrainMultiplier");
                 thisMod.BindConfig<WaterBuoyancy>(null, "FloodChangeClamp");
-                thisMod.BindConfig<WaterBuoyancy>(null, "FloodHeightMultiplier");
+                thisMod.BindConfig<WaterBuoyancy>(null, "floodHeightMultiplier");
             }
 
             _thisMod = thisMod;
@@ -187,6 +189,7 @@ namespace WaterMod
                 FloodHeightMultiplier = new OptionRange("Flood Height Multiplier", WeatherProperties, WaterBuoyancy.FloodHeightMultiplier, 0, 50f, 1f);
                 FloodHeightMultiplier.onValueSaved.AddListener(() => { WaterBuoyancy.FloodHeightMultiplier = FloodHeightMultiplier.SavedValue; });
             }
+            WaterBuoyancy.UpdateHeightCalc();
         }
         public static OptionKey GUIMenu;
         public static OptionToggle IsWaterActive;
@@ -362,6 +365,17 @@ namespace WaterMod
                 wEffect.effectBase = __instance;
                 wEffect.effectType = EffectTypes.ResourceChunk;
                 wEffect.GetRBody();
+            }
+        }
+
+        
+        [HarmonyPatch(typeof(TileManager))]
+        [HarmonyPatch("Init")]
+        private class PatchTiles
+        {
+            private static void Postfix(TileManager __instance)
+            {
+                RemoveScenery.Sub();
             }
         }
     }

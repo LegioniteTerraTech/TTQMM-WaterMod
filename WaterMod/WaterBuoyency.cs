@@ -39,7 +39,8 @@ namespace WaterMod
             RainWeightMultiplier = 0.06f,
             RainDrainMultiplier = 0.06f,
             FloodChangeClamp = 0.002f,
-            AbyssDepth = 50f;
+            AbyssDepth = 50f,
+            LavaDampenMulti = 3;
 
         public static float FloodHeightMultiplier
         {

@@ -274,7 +274,7 @@ namespace WaterMod
                 tank.rbody.AddForceAtPosition(Vector3.down * (WaterBuoyancy.Density * 7.5f) * SubmergeCount, SubmergeAdditivePos / SubmergeCount);
                 SubmergeAdditivePos = Vector3.zero;
                 if (QPatch.TheWaterIsLava)
-                    tank.rbody.AddForce(-(tank.rbody.velocity * WaterBuoyancy.SubmergedTankDampening * 3 + (Vector3.down * (tank.rbody.velocity.y * WaterBuoyancy.SubmergedTankDampeningYAddition))) * SubmergeCount, ForceMode.Force);
+                    tank.rbody.AddForce(-(tank.rbody.velocity * WaterBuoyancy.SubmergedTankDampening * WaterBuoyancy.LavaDampenMulti + (Vector3.down * (tank.rbody.velocity.y * WaterBuoyancy.SubmergedTankDampeningYAddition))) * SubmergeCount, ForceMode.Force);
                 else
                     tank.rbody.AddForce(-(tank.rbody.velocity * WaterBuoyancy.SubmergedTankDampening + (Vector3.down * (tank.rbody.velocity.y * WaterBuoyancy.SubmergedTankDampeningYAddition))) * SubmergeCount, ForceMode.Force);
                 SubmergeCount = 0;
@@ -282,7 +282,7 @@ namespace WaterMod
             if (SurfaceCount != 0)
             {
                 if (QPatch.TheWaterIsLava)
-                    tank.rbody.AddForceAtPosition(-(tank.rbody.velocity * WaterBuoyancy.SurfaceTankDampening * 3 + (Vector3.down * (tank.rbody.velocity.y * WaterBuoyancy.SurfaceTankDampeningYAddition))) * SurfaceCount, SurfaceAdditivePos / SurfaceCount);
+                    tank.rbody.AddForceAtPosition(-(tank.rbody.velocity * WaterBuoyancy.SurfaceTankDampening * WaterBuoyancy.LavaDampenMulti + (Vector3.down * (tank.rbody.velocity.y * WaterBuoyancy.SurfaceTankDampeningYAddition))) * SurfaceCount, SurfaceAdditivePos / SurfaceCount);
                 else
                     tank.rbody.AddForceAtPosition(-(tank.rbody.velocity * WaterBuoyancy.SurfaceTankDampening + (Vector3.down * (tank.rbody.velocity.y * WaterBuoyancy.SurfaceTankDampeningYAddition))) * SurfaceCount, SurfaceAdditivePos / SurfaceCount);
                 SurfaceAdditivePos = Vector3.zero;

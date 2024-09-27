@@ -21,20 +21,21 @@ namespace WaterMod
             var startup = new GameObject("RemoveScenery");
             startup.AddComponent<RemoveScenery>();
             inst = startup.GetComponent<RemoveScenery>();
-            Debug.Log("WaterMod: ResSpawnOverride - Initated!");
+            DebugWater.Log("WaterMod: ResSpawnOverride - Initated!");
         }
         public static void Sub()
         { 
-            Singleton.Manager<ManWorld>.inst.TileManager.TileLoadedEvent.Subscribe(RemoveTrees);
+            //Singleton.Manager<ManWorld>.inst.TileManager.TilePopulatedEvent.Subscribe(RemoveTrees);
         }
 
         public static void RemoveTrees(WorldTile tile)
         {   // 
             //int removed = 0;
-            if (QPatch.DestroyTreesInWater && (ManNetwork.IsHost || !ManNetwork.IsNetworked))
+            if (QPatch.DestroyTreesInWater && (ManNetwork.IsHost || !ManNetwork.IsNetworked) && tile.HasReachedLoadState(WorldTile.State.Populated))
             {
-                foreach (Visible vis in Singleton.Manager<ManVisible>.inst.VisiblesTouchingRadius(Singleton.cameraTrans.position, 500, new Bitfield<ObjectTypes>()))
+                foreach (var pair in tile.Visibles[3])
                 {
+                    Visible vis = pair.Value;
                     try
                     {
                         if (vis.resdisp.IsNotNull() && vis.centrePosition.y < QPatch.WaterHeight)
@@ -45,6 +46,7 @@ namespace WaterMod
                                 case SceneryTypes.DesertTree:
                                 case SceneryTypes.MountainTree:
                                 case SceneryTypes.ShroomTree:
+                                case SceneryTypes.DeadTree:
                                     vis.resdisp.RemoveFromWorld(false, PermRemove, true, true);
                                     clock = 0;
                                     //removed++;
@@ -58,6 +60,7 @@ namespace WaterMod
             }
         }
 
+        /*
         private static void EradicateSelectRes()
         {   // 
             //int removed = 0;
@@ -96,5 +99,6 @@ namespace WaterMod
                 clock++;
             }
         }
+        */
     }
 }

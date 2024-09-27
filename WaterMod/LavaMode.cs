@@ -11,7 +11,7 @@ namespace WaterMod
         public static LavaMode inst;
         internal static GameObject warner;
 
-        public static int DamageUpdateDelay = 30;
+        public static float DamageUpdateDelay = 1.5f;
         public static float MeltBlocksStrength = 25;
         public static bool DealPainThisFrame = false;
 
@@ -22,7 +22,7 @@ namespace WaterMod
             var startup = new GameObject("EvilLavaBeast");
             startup.AddComponent<LavaMode>();
             inst = startup.GetComponent<LavaMode>();
-            Debug.Log("WaterMod: LavaMode - Initated!");
+            DebugWater.Log("WaterMod: LavaMode - Initated!");
             warner = new GameObject();
             warner.AddComponent<LavaDeathWarningGUI>();
             warner.gameObject.SetActive(false);
@@ -73,7 +73,7 @@ namespace WaterMod
                 try
                 {
                     Window = new Rect(Display.main.renderingWidth / 2 - 100, (Display.main.renderingHeight - 75) / 2, 200, 155);
-                    Window = GUI.Window(29587435, Window, GUIWindow, "Enable Hazardous Lava");
+                    Window = TerraTechETCUtil.AltUI.Window(29587435, Window, GUIWindow, "Enable Hazardous Lava");
                 }
                 catch { }
             }
@@ -84,18 +84,18 @@ namespace WaterMod
                 {
                     GUILayout.Label("<b>--------Warning--------</b>");
                     GUILayout.Label("<b><color=#f23d3dff>>  THIS WILL MELT TECHS  <</color></b>");
-                    if (GUI.Button(new Rect(20, 75, 80, 60), "Stay Safe"))
+                    if (GUILayout.Button("Stay Safe", TerraTechETCUtil.AltUI.ButtonGreen))
                     {
                         Singleton.Manager<ManSFX>.inst.PlayUISFX(ManSFX.UISfxType.Back);
                         QPatch.WantsLava = false;
                         gameObject.SetActive(false);
                         try
                         {
-                            QPatch.makeDeath.Value = false;
+                            SafeInit.makeDeath.Value = false;
                         }
                         catch { }
                     }
-                    if (GUI.Button(new Rect(100, 75, 80, 60), "<color=#f23d3dff>All Must\nPerish</color>"))
+                    if (GUILayout.Button("<color=#f23d3dff>All Must\nPerish</color>", TerraTechETCUtil.AltUI.ButtonRed))
                     {
                         Singleton.Manager<ManSFX>.inst.PlayUISFX(ManSFX.UISfxType.Enter);
                         ScreamLava();
@@ -109,8 +109,9 @@ namespace WaterMod
                             }
                         }
                         catch { }
-                        WaterBuoyancy.UpdateLook();
-                        WaterBuoyancy._inst.Save();
+                        ManWater.UpdateLook();
+                        SurfacePool.UpdateAllActiveParticles();
+                        ManWater._inst.Save();
                         gameObject.SetActive(false);
                     }
                 }
@@ -118,14 +119,14 @@ namespace WaterMod
                 {
                     GUILayout.Label("<b>  Only the server host  </b>");
                     GUILayout.Label("<b>    can summon lava.    </b>");
-                    if (GUI.Button(new Rect(60, 75, 80, 60), "<b>Okay</b>"))
+                    if (GUILayout.Button("<b>Okay</b>"))
                     {
                         Singleton.Manager<ManSFX>.inst.PlayUISFX(ManSFX.UISfxType.InfoClose);
                         QPatch.WantsLava = false;
                         gameObject.SetActive(false);
                         try
                         {
-                            QPatch.makeDeath.Value = false;
+                            SafeInit.makeDeath.Value = false;
                         }
                         catch { }
                     }

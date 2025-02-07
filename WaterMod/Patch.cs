@@ -7,6 +7,8 @@ using UnityEngine;
 using Nuterra.NativeOptions;
 using System.IO;
 using TerraTechETCUtil;
+using UnityEngine.UI;
+
 
 #if !STEAM
 using ModHelper.Config;
@@ -20,9 +22,9 @@ namespace WaterMod
     {
         [HarmonyPatch(typeof(Tank), "OnSpawn")]
         [HarmonyPriority(-69)]
-        static class AbsoluteAssertWaterTank
+        private static class AbsoluteAssertWaterTank
         {
-            static void Postfix(Tank __instance)
+            internal static void Postfix(Tank __instance)
             {
                 try
                 {
@@ -36,9 +38,9 @@ namespace WaterMod
         }
         [HarmonyPatch(typeof(ModuleAnchor))]
         [HarmonyPatch("IsColliderBlockingAnchor")]
-        private class AllowAnchorInWater
+        private static class AllowAnchorInWater
         {
-            private static bool Prefix(ModuleAnchor __instance, ref Collider col, ref bool __result)
+            internal static bool Prefix(ModuleAnchor __instance, ref Collider col, ref bool __result)
             {
                 if (col.gameObject.layer == ManWater.WaterLayer || col.gameObject.GetComponent<ManWater>())
                 {
@@ -49,58 +51,47 @@ namespace WaterMod
             }
         }
 
-        [HarmonyPatch(typeof(ModuleLight), "OnAttached")]
+        [HarmonyPatch(typeof(TOD_Sky), "UpdateCelestials")]
         [HarmonyPriority(-69)]
-        static class LightsCheckup
+        private static class DarknessEffect
         {
-            static void Postfix(ModuleLight __instance)
-            {
-                if (__instance.block?.tank)
-                {
-                    WaterTank.Insure(__instance.block.tank).OnSplashdown.Add(__instance);
-                }
-            }
-        }
-        [HarmonyPatch(typeof(ModuleLight), "OnDetached")]
-        [HarmonyPriority(-69)]
-        static class LightsCheckup2
-        {
-            static void Prefix(ModuleLight __instance)
-            {
-                if (__instance.block?.tank)
-                {
-                    WaterTank.Insure(__instance.block.tank).OnSplashdown.Remove(__instance);
-                }
-            }
-        }
-        [HarmonyPatch(typeof(ModuleLight), "EnableLights")]
-        [HarmonyPriority(-69)]
-        static class LightsWhenDark
-        {
-            static void Prefix(ModuleLight __instance, ref bool enable)
-            {
-                if (__instance.block?.tank && WaterTank.Insure(__instance.block.tank).SubmergeAmount > 0)
-                    enable = true;
-            }
-        }
-        [HarmonyPatch(typeof(ManTimeOfDay), "UpdateBiomeColours")]
-        [HarmonyPriority(-69)]
-        static class DarknessEffect
-        {
-            static void Postfix(ManTimeOfDay __instance)
+            internal static void Prefix()
             {
                 if (ManWater.CameraSubmerged)
                     ManWater.UpdateDarkness();
             }
         }
-        
+        [HarmonyPatch(typeof(ManTimeOfDay), "LerpCloudData")]
+        [HarmonyPriority(-133700)]
+        private static class CloudsEffect
+        {
+            private static FieldInfo sky = typeof(ManTimeOfDay).GetField("m_Sky", BindingFlags.Instance | BindingFlags.NonPublic);
+            private static FieldInfo cloudflare = typeof(ManTimeOfDay).GetField("m_TargetCloudParams", BindingFlags.Instance | BindingFlags.NonPublic);
+            internal static void Prefix(ManTimeOfDay __instance)
+            {
+                if (ManWater.CameraSubmerged)
+                {
+                    //TOD_CloudParameters cloudsInst = (TOD_CloudParameters)cloudflare.GetValue(__instance);
+                    var cloudsInst = (sky.GetValue(ManTimeOfDay.inst) as TOD_Sky).Clouds;
+                    cloudsInst.Opacity = 0.001f;
+                    cloudsInst.Coverage = 0.001f;
+                    cloudsInst.Brightness = 0;
+                    cloudsInst.Attenuation = 0;
+                    cloudsInst.Saturation = 0;
+                    cloudsInst.Sharpness = 0;
+                    cloudsInst.Size = 1; 
+                    cloudsInst.Scattering = 0;
+                }
+            }
+        }
+
         /*
         [HarmonyPatch(typeof(TerrainObject))]
         [HarmonyPatch("SpawnFromPrefab", new Type[] { typeof(WorldTile), typeof(Vector3), typeof(Quaternion),
         typeof(float), typeof(IntVector2)})]
-        private class RedirectSpawningIfNeeded
+        private static class RedirectSpawningIfNeeded
         {
-            private static bool Prefix(TerrainObject __instance, ref WorldTile tile, ref Vector3 pos, 
+            internal static bool Prefix(TerrainObject __instance, ref WorldTile tile, ref Vector3 pos, 
                 ref Quaternion rot, ref float scale, ref IntVector2 cellCoord, ref Transform __result)
             {
                 if (QPatch.DestroyTreesInWater && pos.y < ManWater.height && OceanFormer.ObjectTypesWaterVariants.TryGetValue(__instance.name, out string newSpawn))
@@ -122,10 +113,10 @@ namespace WaterMod
         */
         [HarmonyPatch(typeof(TankBeam))]
         [HarmonyPatch("SetHoverBase")]
-        private class TankInsureBBeamUnderwater
+        private static class TankInsureBBeamUnderwater
         {
             private static FieldInfo hBase = typeof(TankBeam).GetField("m_HoverBase", BindingFlags.Instance | BindingFlags.NonPublic);
-            private static void Postfix(TankBeam __instance)
+            internal static void Postfix(TankBeam __instance)
             {
                 Vector3 pos = (Vector3)hBase.GetValue(__instance);
                 if (pos.y < ManWater.heightCalc)
@@ -135,18 +126,18 @@ namespace WaterMod
 
         [HarmonyPatch(typeof(ManLooseBlocks))]
         [HarmonyPatch("DoSpawnTankBlock")]
-        private class TankBlockSpawned
+        private static class TankBlockSpawned
         {
-            private static void Postfix(ref TankBlock __result)
+            internal static void Postfix(ref TankBlock __result)
             {
                 WaterBlock.Insure(__result);
             }
         }
         [HarmonyPatch(typeof(TankBlock))]
         [HarmonyPatch("OnRecycle")]
-        private class TankBlockRecycle
+        private static class TankBlockRecycle
         {
-            private static void Postfix(TankBlock __instance)
+            internal static void Postfix(TankBlock __instance)
             {
                 try
                 {
@@ -157,27 +148,27 @@ namespace WaterMod
         }
 
         [HarmonyPatch(typeof(Projectile), "Fire")]
-        private class PatchProjectileSpawn
+        private static class PatchProjectileSpawn
         {
-            private static void Postfix(Projectile __instance)
+            internal static void Postfix(Projectile __instance)
             {
                 WaterObj.Insure(__instance).Reset();
             }
         }
 
         [HarmonyPatch(typeof(MissileProjectile), "Fire")]
-        private class PatchMissile
+        private static class PatchMissile
         {
-            private static void Prefix(MissileProjectile __instance)
+            internal static void Prefix(MissileProjectile __instance)
             {
                 WaterObj.Insure(__instance).Reset();
             }
         }
 
         [HarmonyPatch(typeof(LaserProjectile), "Fire")]
-        private class PatchLaser
+        private static class PatchLaser
         {
-            private static void Prefix(LaserProjectile __instance)
+            internal static void Prefix(LaserProjectile __instance)
             {
                 WaterObj.Insure(__instance).Reset();
             }
@@ -186,9 +177,9 @@ namespace WaterMod
         /*
         [HarmonyPatch(typeof(ResourcePickup))]
         [HarmonyPatch("OnPool")]
-        private class PatchResource
+        private static class PatchResource
         {
-            private static void Postfix(ResourcePickup __instance)
+            internal static void Postfix(ResourcePickup __instance)
             {
                 var wEffect = __instance.gameObject.AddComponent<WaterObj>();
                 wEffect.effectBase = __instance;
@@ -198,9 +189,9 @@ namespace WaterMod
         }*/
         [HarmonyPatch(typeof(ResourceManager))]
         [HarmonyPatch("SpawnResource")]
-        private class PatchResourceSpawn
+        private static class PatchResourceSpawn
         {
-            private static void Postfix(ResourcePickup __instance)
+            internal static void Postfix(ResourcePickup __instance)
             {
                 if (__instance != null)
                     WaterObj.Insure(__instance).Reset();
@@ -210,9 +201,9 @@ namespace WaterMod
 
         [HarmonyPatch(typeof(TileManager))]
         [HarmonyPatch("Init")]
-        private class PatchTiles
+        private static class PatchTiles
         {
-            private static void Postfix(TileManager __instance)
+            internal static void Postfix(TileManager __instance)
             {
                 RemoveScenery.Sub();
             }
@@ -222,7 +213,7 @@ namespace WaterMod
         [HarmonyPatch("Reset")]
         internal static class ManWorldPatches
         {
-            private static void Prefix(ManWorld __instance)
+            internal static void Prefix(ManWorld __instance)
             {
                 if (__instance.CurrentBiomeMap != null)
                 {
@@ -236,9 +227,9 @@ namespace WaterMod
         internal class AddOceanicBiomes
         {
             //AddOceanicBiomes
-            private static void Prefix(BiomeMap __instance)
+            internal static void Prefix(BiomeMap __instance)
             {
-                if (QPatch.OceanMan)
+                if (QPatch.OceanMan2)
                     OceanFormer.AddOceanicBiomes(__instance);
                 else
                     OceanFormer.RemoveOceanicBiomes(__instance);

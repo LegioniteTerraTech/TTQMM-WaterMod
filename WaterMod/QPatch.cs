@@ -51,7 +51,7 @@ namespace WaterMod
         public static bool OnlyPlayerWaterTraverseSFX = false;
 
         public static bool EnableLooseBlocksFloat = true;
-        public static bool OceanMan = false;
+        public static bool OceanMan2 = false;
         public static bool DestroyTreesInWater = false;
         internal static bool WantsLava = false;
         /// <summary>
@@ -81,10 +81,12 @@ namespace WaterMod
             }
         }
 
+        public static Harmony harmony;
         public static void Main()
         {
             //ManTechBuilder.DebugIntersections = true;// SOO USEFUL
-            var harmony = new Harmony("aceba1.ttmm.revived.water");
+            harmony = new Harmony("aceba1.ttmm.revived.water");
+            harmony.MassPatchAllWithin(typeof(MainPatches),"Water Mod + Lava", true);
             harmony.PatchAll(Assembly.GetExecutingAssembly());
 
             /*
@@ -103,13 +105,13 @@ namespace WaterMod
                 SafeInit.InitHooks();
             }
             catch { DebugWater.Log("Water Mod: Error on init hooks, was confighelper or NativeOptions absent?"); }
-            TerrainOperations.BeachingMode = OceanMan;
+            TerrainOperations.BeachingMode = OceanMan2;
 
             ManWater.UpdateHeightCalc();
             ManWater.UpdateLook();
             SurfacePool.UpdateAllActiveParticles();
 
-            if (OceanMan)
+            if (OceanMan2)
                 WorldTerraformer.InsurePreInit();
         }
     }
@@ -183,7 +185,7 @@ namespace WaterMod
             thisMod.BindConfig<ManWater>(null, "AbyssDepth");
 
             thisMod.BindConfig<QPatch>(null, "EnableLooseBlocksFloat");
-            thisMod.BindConfig<QPatch>(null, "OceanMan");
+            thisMod.BindConfig<QPatch>(null, "OceanMan2");
             thisMod.BindConfig<QPatch>(null, "DestroyTreesInWater");
             thisMod.BindConfig<QPatch>(null, "theWaterIsLava");
 
@@ -204,16 +206,16 @@ namespace WaterMod
                 ManWater.IsActive = IsWaterActive.SavedValue;
                 ManWater.SetState();
             });
-            oceanMan = new OptionToggle("Ocean Mode [WIP]", QPatch.ModName, QPatch.OceanMan);
+            oceanMan = new OptionToggle("Ocean Mode [WIP - WILL BREAK YOUR GAME]", QPatch.ModName, QPatch.OceanMan2);
             oceanMan.onValueSaved.AddListener(() =>
             {
                 try
                 {
-                    bool RELOAD = QPatch.OceanMan != oceanMan.SavedValue;
-                    QPatch.OceanMan = oceanMan.SavedValue;
+                    bool RELOAD = QPatch.OceanMan2 != oceanMan.SavedValue;
+                    QPatch.OceanMan2 = oceanMan.SavedValue;
                     if (RELOAD)
                     {
-                        if (QPatch.OceanMan)
+                        if (QPatch.OceanMan2)
                             WorldTerraformer.InsurePreInit();
                         foreach (var item in ManWorld.inst.TileManager.IterateTiles())
                         {

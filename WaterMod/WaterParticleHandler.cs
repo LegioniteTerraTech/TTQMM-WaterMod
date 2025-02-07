@@ -13,9 +13,26 @@ namespace WaterMod
         public static float offsetHeightSurface => ManWater.CameraSubmerged ? offsetHeightSurfaceMainInv : offsetHeightSurfaceMain;
         public static float offsetHeightSurfaceMain = 0.325f;
         public static float offsetHeightSurfaceMainInv = -0.35f;
-        public static float BubblesOpacity = 0.35f;
-        public static float BubblesStartSize = 0.10f;
-        public static float BubblesMaxSize = 0.15f;
+        public static float BubblesOpacity = 1;//0.35f;
+        public static float BubblesMinSize = 0.15f;
+        public static float BubblesAvgSize = 0.375f;
+        public static float BubblesMaxSize = 0.6f;
+        public static ParticleSystem.MinMaxCurve BubblesSpawnScale = new ParticleSystem.MinMaxCurve()
+        {
+            mode = ParticleSystemCurveMode.Curve,
+            curve = new AnimationCurve()
+            {
+                keys = new Keyframe[4]
+                    {
+                        new Keyframe(0, BubblesMinSize),
+                        new Keyframe(0.3f, BubblesAvgSize),
+                        new Keyframe(0.7f, BubblesAvgSize),
+                        new Keyframe(1, BubblesMaxSize)
+                    },
+            },
+            curveMultiplier = 1,
+        };
+        public static float BubblesMaxRenderSize = 0.4f;//0.15f;
 
         public static Material blurredMat;
         public static Material blurredMatLava;
@@ -299,7 +316,7 @@ namespace WaterMod
             m.cullingMode = ParticleSystemCullingMode.AlwaysSimulate;
             m.simulationSpace = ParticleSystemSimulationSpace.World;
             m.startLifetime = 16f;
-            m.startSize = BubblesStartSize;
+            m.startSize = BubblesSpawnScale;
             m.startSize3D = false;
             m.playOnAwake = false;
             m.maxParticles = 500;
@@ -316,7 +333,7 @@ namespace WaterMod
             //s.shapeType = ParticleSystemShapeType.Cone;
             s.shapeType = ParticleSystemShapeType.Circle;
             s.angle = 0f;
-            s.radius = 70f;
+            s.radius = 80f;
             s.rotation = Vector3.right * 270f;
             s.position = Vector3.zero;
 
@@ -331,7 +348,7 @@ namespace WaterMod
             var r = ps.GetComponent<ParticleSystemRenderer>();
             r.renderMode = ParticleSystemRenderMode.Billboard;
             r.material = bubbleMaterial;
-            r.maxParticleSize = BubblesMaxSize;
+            r.maxParticleSize = BubblesMaxRenderSize;
 
             FXBubbleStreams = ps;
             ps.Stop();
@@ -573,15 +590,17 @@ namespace WaterMod
                 if (ManWater.CameraSubmerged)
                 {
                     var m = PS.main;
-                    m.startSize = UnityEngine.Random.Range(0.8f, 1.25f) * WaterParticleHandler.BubblesStartSize;
+                    m.startSize = WaterParticleHandler.BubblesSpawnScale;
                     var e = PS.emission;
-                    e.rateOverTime = 0.0005f;
+                    //e.rateOverTime = 0.0005f;
+                    e.rateOverTime = 0.5f;
                     if (Rate > 1)
-                        e.rateOverDistance = 0.015f * Rate;
+                        e.rateOverDistance = 0.615f * Rate;
                     else
-                        e.rateOverDistance = 0.015f + UnityEngine.Random.Range(0f,0.02f);
+                        e.rateOverDistance = 0.615f + UnityEngine.Random.Range(0f,0.02f);
+                    e.rateOverDistanceMultiplier = 1;
                     r.renderMode = ParticleSystemRenderMode.Billboard;
-                    r.maxParticleSize = WaterParticleHandler.BubblesMaxSize;
+                    r.maxParticleSize = WaterParticleHandler.BubblesMaxRenderSize;
                     r.material = WaterParticleHandler.bubbleMaterial;
                 }
                 else
@@ -591,6 +610,7 @@ namespace WaterMod
                     var e = PS.emission;
                     e.rateOverTime = 0.5f;
                     e.rateOverDistance = 0.5f;
+                    e.rateOverDistanceMultiplier = 1;
                     r.renderMode = ParticleSystemRenderMode.HorizontalBillboard;
                     r.maxParticleSize = 200;
                     if (QPatch.TheWaterIsLava)

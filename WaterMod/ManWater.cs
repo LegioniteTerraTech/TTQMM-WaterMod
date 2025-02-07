@@ -85,7 +85,7 @@ namespace WaterMod
         {
             get
             {
-                if (QPatch.OceanMan)
+                if (QPatch.OceanMan2)
                     return -50;
                 return height;
             }
@@ -1064,10 +1064,11 @@ namespace WaterMod
         };
 
         private static Color spoopy = new Color(0.005f, 0.005f, 0.025f, 1f);
+        //private static Color spoopy = new Color(0, 0, 0, 1f);
         private static float multiplierUnclamped = 0;
         private static float multiplier = 0;
 
-        public static void SetDarkness()
+        public static Color SetDarkness(Color inColor)
         {
             var sky = m_Sky.GetValue(ManTimeOfDay.inst) as TOD_Sky;
 
@@ -1075,15 +1076,16 @@ namespace WaterMod
             RenderSettings.fogMode = FogMode.ExponentialSquared;
             RenderSettings.fogStartDistance = 0f;
             RenderSettings.fogEndDistance = 40f;
-            sky.m_UseTerraTechBiomeData = false;
+            sky.m_UseTerraTechBiomeData = true;
             sky.Fog.Mode = TOD_FogType.None;
             sky.Ambient.Mode = TOD_AmbientType.None;
 
             Color abyssColor;
             if (QPatch.TheWaterIsLava)
             {
-                abyssColor = underLavaColor * multiplier;
+                abyssColor = underLavaColor * multiplier * inColor;
                 abyssColor.a = 1f;
+                //RenderSettings.sun.enabled = false;
                 RenderSettings.fogDensity = 420f;
                 RenderSettings.fogColor = abyssColor;
                 RenderSettings.ambientLight = abyssColor;
@@ -1099,10 +1101,11 @@ namespace WaterMod
             else
             {
                 Color TODColorDelta = ManTimeOfDay.inst.NightTime ? new Color(0.525f, 0.525f, 0.525f, 1) : new Color(1, 1, 1, 1);
-                abyssColor = underWaterColor * TODColorDelta * multiplier;
+                abyssColor = underWaterColor * TODColorDelta * multiplier * inColor;
                 abyssColor.a = 1f;
                 float depthWatch = Mathf.Clamp01((multiplierUnclamped / 2) - (ManTimeOfDay.inst.NightTime ? 0f : 0.5f));
                 Color darker = (spoopy * depthWatch) + (abyssColor * (1f - depthWatch));
+                //RenderSettings.sun.enabled = false;
                 RenderSettings.fogDensity = 160f;
                 RenderSettings.fogColor = darker;
                 RenderSettings.ambientLight = darker;
@@ -1115,7 +1118,56 @@ namespace WaterMod
                 sky.Day.AmbientColor = sky.Night.AmbientColor = underWaterSkyColors;
                 sky.Day.FogColor = sky.Night.FogColor = sky.Day.LightColor = sky.Night.LightColor = sky.Day.SkyColor = sky.Night.SkyColor = underWaterSkyColors;
             }
+            return abyssColor;
         }
+        public static void KeepDarkness(DayNightColours dayColours, DayNightColours nightColours)
+        {// INSIDE the water
+            Color abyssColor;
+            ManTimeOfDay.inst.BlendImmediately();
+            if (QPatch.TheWaterIsLava)
+            {
+                abyssColor = underLavaColor * multiplier;
+                abyssColor.a = 1f;
+                dayColours.DustVFXColour *= abyssColor;
+                nightColours.DustVFXColour *= abyssColor;
+                dayColours.LightColour *= abyssColor;
+                nightColours.LightColour *= abyssColor;
+                dayColours.AmbientColour *= abyssColor;
+                nightColours.AmbientColour *= abyssColor;
+                dayColours.RayColour *= abyssColor;
+                nightColours.RayColour *= abyssColor;
+                dayColours.FogColour *= abyssColor;
+                nightColours.FogColour *= abyssColor;
+                dayColours.SkyColour *= abyssColor;
+                nightColours.SkyColour *= abyssColor;
+                dayColours.SunMoonColour *= abyssColor;
+                nightColours.SunMoonColour *= abyssColor;
+            }
+            else
+            {
+                Color TODColorDelta = ManTimeOfDay.inst.NightTime ? new Color(0.525f, 0.525f, 0.525f, 1) : new Color(1, 1, 1, 1);
+                abyssColor = underWaterColor * TODColorDelta * multiplier;
+                abyssColor.a = 1f;
+                float depthWatch = Mathf.Clamp01((multiplierUnclamped / 2) - (ManTimeOfDay.inst.NightTime ? 0f : 0.5f));
+                Color darker = (spoopy * depthWatch) + (abyssColor * (1f - depthWatch));
+                dayColours.DustVFXColour *= darker;
+                nightColours.DustVFXColour *= darker;
+                dayColours.LightColour *= darker;
+                nightColours.LightColour *= darker;
+                dayColours.AmbientColour *= darker;
+                nightColours.AmbientColour *= darker;
+                dayColours.RayColour *= darker;
+                nightColours.RayColour *= darker;
+                dayColours.FogColour *= darker;
+                nightColours.FogColour *= darker;
+                dayColours.SkyColour *= darker;
+                nightColours.SkyColour *= darker;
+                dayColours.SunMoonColour *= darker;
+                nightColours.SunMoonColour *= darker;
+            }
+        }
+        public static readonly ManTimeOfDayExt.TOD_Ordering order = new ManTimeOfDayExt.TOD_Ordering(
+            "WM", 0, SetDarkness, KeepDarkness);
         public static void UpdateDarkness()
         {// INSIDE the water
             if (!CameraSubmerged)
@@ -1123,11 +1175,21 @@ namespace WaterMod
                 CameraSubmerged = true;
                 UpdateAllTiles();
             }
-            ManTimeOfDayExt.SetState("WM", 100, SetDarkness);
+            ManTimeOfDayExt.SetState(order);
         }
 
         private void RemoteUpdate()
         {
+            if (gameObject == null)
+                throw new NullReferenceException("gameObject");
+            if (PhysicsZone == null)
+                throw new NullReferenceException("PhysicsZone");
+            if (waterGUI == null)
+                throw new NullReferenceException("waterGUI");
+            if (Camera.main == null)
+                throw new NullReferenceException("Camera.main");
+            if (ManGameMode.inst == null || ManTimeOfDay.inst == null)
+                return;
             if (!IsActive)
             {
                 gameObject.SetActive(false);
@@ -1164,7 +1226,7 @@ namespace WaterMod
                     else
                         height = Camera.main.transform.position.y;
 
-                    multiplierUnclamped = Mathf.Approximately(WaterGlobals.AbyssDepth, 0) ? 1 : 1 
+                    multiplierUnclamped = Mathf.Approximately(WaterGlobals.AbyssDepth, 0) ? 1 : 1
                         - ((HeightCalc - height) / WaterGlobals.AbyssDepth);
                     multiplier = Mathf.Clamp01(multiplierUnclamped);
                     UpdateDarkness();
@@ -1174,6 +1236,7 @@ namespace WaterMod
                     CameraSubmerged = false;
                     UpdateAllTiles();
                     ManTimeOfDayExt.RemoveState("WM");
+                    ManTimeOfDay.inst.BlendImmediately();
                 }
 
 

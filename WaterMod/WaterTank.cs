@@ -12,14 +12,15 @@ namespace WaterMod
         public static HashSet<WaterTank> All = new HashSet<WaterTank>();
         public Tank tank;
         public Vector3 SubmergeAdditivePos = Vector3.zero;
-        public float SubmergeAmount = 0;
+        private float SubmergeAmount = 0;
+        public bool SubmergedThisUpdate = false;
         public Vector3 SurfaceAdditivePos = Vector3.zero;
         public int SurfaceCount = 0;
         public int SurfaceCountPrev = 0;
         private bool TouchWaterPrev = false;
         internal bool FloationMode = true;
 
-        public List<ModuleLight> OnSplashdown = new List<ModuleLight>();
+        public HashSet<ModuleLight> OnSplashdown = new HashSet<ModuleLight>();
 
         public static WaterTank Insure(Tank tank)
         {
@@ -172,7 +173,7 @@ namespace WaterMod
                 speedAvg = Mathf.Max(Mathf.Abs(tank.rbody.velocity.x), Mathf.Abs(tank.rbody.velocity.y), Mathf.Abs(tank.rbody.velocity.z));
             else
                 speedAvg = 0f;
-            bool doPlay = SubmergeAmount > 0 && speedAvg > 3f && !ManPauseGame.inst.IsPaused;
+            bool doPlay = SubmergedThisUpdate && speedAvg > 3f && !ManPauseGame.inst.IsPaused;
             if (doPlay)
             {
                 Audio.Resume();
@@ -187,7 +188,7 @@ namespace WaterMod
             }
             else
             {
-                if (SubmergeAmount > 0)
+                if (SubmergedThisUpdate)
                     tank.beam.SetHoverBase();
                 if (!Audio.IsPaused)
                     Audio.Pause();
@@ -222,13 +223,12 @@ namespace WaterMod
                 }
                 catch (Exception e){ DebugWater.Log(e); }
             }
-            MaintainTraversalNoise();
             int bCount = tank.blockman.blockCount;
             if (bCount == 0)
                 return;
             Vector3 Velo = tank.rbody.velocity;
             // Vector3 Velo = tank.rbody.velocity - (Physics.gravity * Time.fixedDeltaTime);
-            bool touchWater = SubmergeAmount > 0 || SurfaceCount > 0;
+            bool touchWater = SubmergedThisUpdate || SurfaceCount > 0;
             if (touchWater != TouchWaterPrev)
             {
                 TouchWaterPrev = touchWater;
@@ -279,7 +279,11 @@ namespace WaterMod
                 tank.rbody.AddForce(force, ForceMode.Force);
                 //tank.rbody.AddForceAtPosition(force, ForceCenter, ForceMode.Force);
                 SubmergeAmount = 0;
+                SubmergedThisUpdate = true;
             }
+            else
+                SubmergedThisUpdate = false;
+            MaintainTraversalNoise();
             if (SurfaceCount != 0)
             {
                 if (SurfaceCountPrev == 0)
@@ -347,7 +351,7 @@ namespace WaterMod
                 try
                 {
                     if (!tank.FirstUpdateAfterSpawn)
-                        WaterTank.Insure(tank).InvertedUpdate();
+                        Insure(tank).InvertedUpdate();
                 }
                 catch { }
             }
@@ -367,7 +371,10 @@ namespace WaterMod
                 else
                     tank.rbody.AddForce(-(tank.rbody.velocity * WaterGlobals.SubmergedTankDampening + (Vector3.down * (tank.rbody.velocity.y * WaterGlobals.SubmergedTankDampeningYAddition))) * SubmergeAmount, ForceMode.Force);
                 SubmergeAmount = 0;
+                SubmergedThisUpdate = true;
             }
+            else
+                SubmergedThisUpdate = false;
             if (SurfaceCount != 0)
             {
                 if (QPatch.TheWaterIsLava)

@@ -52,7 +52,8 @@ namespace WaterMod
         public static AnimationCurve SeaWeighting => AnimationCurve.Linear(0f, 1f, HelperGUI.value, 0f); //new AnimationCurve();
 
         //public static float seaWeights = 0.195f;//0.25f;
-        public static float seaWeights = 15000f;
+        //public static float seaWeights = 15000f;
+        public static float seaWeights = 0.4f;
         private static float seaWeightsBeaches => 0.6f * seaWeights;
         public const float SeaBeachHeight = -0.225f;//-0.2f;
         private static float seaWeightsBeachesSubmerged => 0.8f * seaWeights;
@@ -194,7 +195,6 @@ Biome #21 - SmallCraters_Biome
                 }
                 catch (Exception)
                 {
-                    throw;
                 }
                 ObjectTypesWaterVariants = new Dictionary<string, string>();
                 foreach (var item in SpawnHelper.IterateSceneryTypes())

@@ -176,6 +176,7 @@
     <Compile Include="EEffectTypes.cs" />
     <Compile Include="KickStartWaterMod.cs" />
     <Compile Include="LavaMode.cs" />
+    <Compile Include="MainPatches.cs" />
     <Compile Include="NetworkHandler.cs" />
     <Compile Include="OBJParser.cs" />
     <Compile Include="OceanFormer.cs" />

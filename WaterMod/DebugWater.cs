@@ -12,7 +12,7 @@ namespace WaterMod
 
         internal static bool ShouldLog = true;
         internal const bool LogAll = true;
-        internal static bool ShouldLogBiomeGen = false;
+        internal static bool ShouldLogBiomeGen = true;
         private const bool LogDev = true;
 
         internal static void Info(string message)

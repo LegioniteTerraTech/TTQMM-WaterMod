@@ -22,7 +22,7 @@ namespace WaterMod
                 if (__instance?.block?.tank)
                 {
                     WaterTank.Insure(__instance.block.tank).OnSplashdown.Add(__instance);
-                    DebugWater.Log("Add one(1) light");
+                    //DebugWater.Log("Add one(1) light");
                 }
             }
             /// <summary> LightsCheckup2 </summary>
@@ -32,15 +32,23 @@ namespace WaterMod
                 if (__instance?.block?.tank)
                 {
                     WaterTank.Insure(__instance.block.tank).OnSplashdown.Remove(__instance);
-                    DebugWater.Log("Subtract one(1) light");
+                    //DebugWater.Log("Subtract one(1) light");
                 }
             }
             /// <summary> LightsWhenDark </summary>
             [HarmonyPriority(-69)]
             internal static void EnableLights_Prefix(ModuleLight __instance, ref bool enable)
             {
-                if (__instance?.block?.tank && WaterTank.Insure(__instance.block.tank).SubmergedThisUpdate)
-                    enable = true;
+                try
+                {
+                    if (__instance != null && __instance.block != null && __instance.block.tank != null)
+                    {
+                        var Tank = WaterTank.Insure(__instance.block.tank);
+                        if (Tank != null && Tank.SubmergedThisUpdate)
+                            enable = true;
+                    }
+                }
+                catch { }
             }
         }
     }

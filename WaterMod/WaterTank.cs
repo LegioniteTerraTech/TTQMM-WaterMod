@@ -25,7 +25,7 @@ namespace WaterMod
         public static WaterTank Insure(Tank tank)
         {
             WaterTank WT = tank.GetComponent<WaterTank>();
-            if (WT)
+            if (WT != null)
                 return WT;
             WT = tank.gameObject.AddComponent<WaterTank>();
             WT.Subscribe(tank);
@@ -192,7 +192,7 @@ namespace WaterMod
                     tank.beam.SetHoverBase();
                 if (!Audio.IsPaused)
                     Audio.Pause();
-            }
+            } 
         }
         private static object[] nothing = new object[0];
         private static MethodInfo lightCheck = typeof(ModuleLight).GetMethod("RefreshLightsActive", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -288,8 +288,15 @@ namespace WaterMod
             {
                 if (SurfaceCountPrev == 0)
                 {
-                    foreach (var item in OnSplashdown)
-                        lightCheck.Invoke(item, nothing);
+                    try
+                    {
+                        foreach (var light in OnSplashdown)
+                        {
+                            if (light != null)
+                                lightCheck.Invoke(light, nothing);
+                        }
+                    }
+                    catch { }
                 }
                 SurfaceCountPrev = SurfaceCount;
                 /*
@@ -337,8 +344,15 @@ namespace WaterMod
             {
                 if (SurfaceCountPrev != 0)
                 {
-                    foreach (var item in OnSplashdown)
-                        lightCheck.Invoke(item, nothing);
+                    try
+                    {
+                        foreach (var light in OnSplashdown)
+                        {
+                            if (light != null)
+                                lightCheck.Invoke(light, nothing);
+                        }
+                    }
+                    catch { }
                 }
                 SurfaceCountPrev = 0;
             }

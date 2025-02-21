@@ -967,14 +967,11 @@ namespace WaterMod
             }
         }
 
-        bool techloaderBroken = true;
         float DamageClock = 0;
         private void RemoteFixedUpdate()
         {
             heartBeat++;    // Updates the water
             DamageClock += Time.fixedDeltaTime;
-            if (Input.GetKey(KeyCode.Keypad6))
-                techloaderBroken = true;
             /*
             if (Input.GetKey(KeyCode.Keypad8))
             {// you should Scrap yourself.  NOW!

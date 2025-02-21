@@ -157,10 +157,11 @@ namespace WaterMod
 
         public static void InitHooks()
         {
-            thisMod = new ModConfig();
+            ModConfig thisConfig = new ModConfig();
 
-            thisMod.BindConfig<WaterParticleHandler>(null, "UseParticleEffects");
+            thisConfig.BindConfig<WaterParticleHandler>(null, "UseParticleEffects");
 
+            thisMod = thisConfig;
 
             thisMod.BindConfig<QPatch>(null, "key_int");
             QPatch.key = (KeyCode)QPatch.key_int;
@@ -201,11 +202,12 @@ namespace WaterMod
 
             _thisMod = thisMod;
 
-            IsWaterActive = new OptionToggle("Water Active", QPatch.ModName, ManWater.IsActive);
-            IsWaterActive.onValueSaved.AddListener(() => {
-                ManWater.IsActive = IsWaterActive.SavedValue;
+            OptionToggle togTest = new OptionToggle("Water Active", QPatch.ModName, ManWater.IsActive);
+            togTest.onValueSaved.AddListener(() => {
+                ManWater.IsActive = togTest.SavedValue;
                 ManWater.SetState();
             });
+            IsWaterActive = togTest;
             oceanMan = new OptionToggle("Ocean Mode [WIP - WILL BREAK YOUR GAME]", QPatch.ModName, QPatch.OceanMan2);
             oceanMan.onValueSaved.AddListener(() =>
             {
@@ -260,10 +262,19 @@ namespace WaterMod
                 ManWater.AlwaysShowTrails = TrailPriority.SavedValue;
                 ManWater.SetShaders(ManWater.AlwaysShowTrails);
             });
-            Height = new OptionRange("Height level", QPatch.ModName, ManWater.Height, -75f, 100f, 1f);
+
+            Height = SuperNativeOptions.OptionRangeAutoDisplay("Height level", QPatch.ModName, ManWater.Height, 
+                -75f, 100f, 1f, (float value) =>
+                {
+                    return Mathf.RoundToInt(value) + "m";
+                });
             Height.onValueSaved.AddListener(() => { ManWater.Height = Height.SavedValue; });
 
-            Sound = new OptionRange("Water Traverse Loudness", QPatch.ModName, ManWater.WaterSound, 0f, 1f, 0.05f);
+            Sound = SuperNativeOptions.OptionRangeAutoDisplay("Water Traverse Loudness", QPatch.ModName, ManWater.WaterSound,
+                0f, 1f, 0.05f, (float value) =>
+                {
+                    return Mathf.RoundToInt(value * 100) + "%";
+                });
             Sound.onValueSaved.AddListener(() => { ManWater.WaterSound = Sound.SavedValue; });
 
             looseBlocksFloat = new OptionToggle("Loose Blocks and Chunks float", QPatch.ModName, QPatch.EnableLooseBlocksFloat);
@@ -336,7 +347,11 @@ namespace WaterMod
                 SurfacePool.UpdateAllActiveParticles();
             });
 
-            var waterAbyssDepth = new OptionRange("Abyss depth", WaterLook, ManWater.AbyssDepth);
+            var waterAbyssDepth = SuperNativeOptions.OptionRangeAutoDisplay("Abyss depth", WaterLook, ManWater.AbyssDepth
+                , uiReturnFunc: (float value) =>
+                {
+                    return "-" + Mathf.RoundToInt(value) + "m";
+                });
             waterAbyssDepth.onValueSaved.AddListener(() => {
                 ManWater.AbyssDepth = waterAbyssDepth.SavedValue;
             });

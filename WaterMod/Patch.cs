@@ -187,14 +187,14 @@ namespace WaterMod
                 wEffect.GetRBody();
             }
         }*/
-        [HarmonyPatch(typeof(ResourceManager))]
-        [HarmonyPatch("SpawnResource")]
+        [HarmonyPatch(typeof(ManLooseBlocks))]
+        [HarmonyPatch("DoSpawnResourcePickup")]
         private static class PatchResourceSpawn
         {
-            internal static void Postfix(ResourcePickup __instance)
+            internal static void Postfix(ResourcePickup __result)
             {
-                if (__instance != null)
-                    WaterObj.Insure(__instance).Reset();
+                if (__result != null)
+                    WaterObj.Insure(__result).Reset();
             }
         }
 
@@ -218,7 +218,7 @@ namespace WaterMod
                 if (__instance.CurrentBiomeMap != null)
                 {
                     DebugWater.Log("Biomes reset");
-                    OceanFormer.ready = false;
+                    ManOceanGenerator.ready = false;
                 }
             }
         }
@@ -230,9 +230,9 @@ namespace WaterMod
             internal static void Prefix(BiomeMap __instance)
             {
                 if (QPatch.OceanMan2)
-                    OceanFormer.AddOceanicBiomes(__instance);
+                    ManOceanGenerator.AddOceanicBiomes(__instance);
                 else
-                    OceanFormer.RemoveOceanicBiomes(__instance);
+                    ManOceanGenerator.RemoveOceanicBiomes(__instance);
             }
         }
     }

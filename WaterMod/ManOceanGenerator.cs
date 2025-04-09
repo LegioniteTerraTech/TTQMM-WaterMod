@@ -36,24 +36,24 @@ namespace WaterMod
             GUILayout.Label("Value: " + value.ToString("F"));
             value = GUILayout.HorizontalSlider(value, 100f, 1000000f);
             GUILayout.Label("seaWeights: " + value2.ToString("F"));
-            OceanFormer.seaWeights = GUILayout.HorizontalSlider(OceanFormer.seaWeights, 1f, 15000f);
+            ManOceanGenerator.seaWeights = GUILayout.HorizontalSlider(ManOceanGenerator.seaWeights, 1f, 15000f);
             if (GUILayout.Button("RESET TERRAIN"))
             {
-                OceanFormer.ResetBiomeTrotter();
-                ManWorldTileExt.ReloadENTIREScene();
+                ManOceanGenerator.ResetBiomeTrotter();
+                ManWorldTileExt.HostReloadENTIREScene(true);
             }
 
             GUI.DragWindow();
         }
     }
-    internal class OceanFormer : WorldTerraformer
+    internal class ManOceanGenerator : ManWorldGeneratorExt
     {
-        public static bool ApplySeaToALL = true;
+        public static bool ApplySeaToALL = false;
         public static AnimationCurve SeaWeighting => AnimationCurve.Linear(0f, 1f, HelperGUI.value, 0f); //new AnimationCurve();
 
         //public static float seaWeights = 0.195f;//0.25f;
-        //public static float seaWeights = 15000f;
-        public static float seaWeights = 0.4f;
+        public static float seaWeights = 15000f;
+        //public static float seaWeights = 0.4f;
         private static float seaWeightsBeaches => 0.6f * seaWeights;
         public const float SeaBeachHeight = -0.225f;//-0.2f;
         private static float seaWeightsBeachesSubmerged => 0.8f * seaWeights;
@@ -70,7 +70,8 @@ namespace WaterMod
 
         public static bool ready = false;
         public static bool applied = false;
-        private static Dictionary<Biome, float> Seabiomes = null;
+        public static Dictionary<string, Biome> SeabiomesByName = null;
+        private static Dictionary<Biome, float> SeabiomeToWeight = null;
         private static BiomeGroup seaBiomeGroup = null;
 
         /*
@@ -110,7 +111,9 @@ Biome #21 - SmallCraters_Biome
 
             // GrasslandsSea
             biomer = CopyBiome(biomes[7], "SoulShoalsBiome");
-            //biomer = CopyBiome(biomes[2], "MossyCreekBiome");
+            SinkBiomeTEMP(biomer, SeaFaunaHeight, true);
+            yield return new KeyValuePair<Biome, float>(biomer, seaWeightsFauna);
+            biomer = CopyBiome(biomes[2], "MossyCreekBiome");
             SinkBiomeTEMP(biomer, SeaFaunaHeight, true);
             yield return new KeyValuePair<Biome, float>(biomer, seaWeightsFauna);
 
@@ -137,20 +140,6 @@ Biome #21 - SmallCraters_Biome
             SinkBiomeTEMP(biomer, SeaDeepHeight, true, true);
             yield return new KeyValuePair<Biome, float>(biomer, seaWeightsDeep * 0.3f);
         }
-        public static KeyValuePair<Biome, float> TryGetPondBiome(string groupName, List<Biome> biomes)
-        {
-            Biome biomer;
-            switch (groupName)
-            {
-                case "yes":
-                    biomer = CopyBiome(biomes[2], "MossyCreekBiome");
-                    SinkBiomeTEMP(biomer, SeaFaunaHeight, true);
-                    return new KeyValuePair<Biome, float>(biomer, seaWeightsFauna);
-                default:
-                    break;
-            }
-            return default;
-        }
 
 
         private static bool appended = false;
@@ -165,6 +154,20 @@ Biome #21 - SmallCraters_Biome
             { SceneryTypes.ChristmasTree, "CoralCoarse" },
             { SceneryTypes.DesertTree, "TubeLauncher" },
         };
+        public static Dictionary<string, string[]> BiomesToAppend = new Dictionary<string, string[]>()
+        {
+            //{ "GrasslandGroupStart", new string[] { "MossyCreekBiome" } }, // Starter biome shouldn't have water
+            { "GrasslandGroupBasic", new string[] { "MossyCreekBiome" } },
+            { "GrasslandGroupAdvanced", new string[] { "MossyCreekBiome", "SoulShoalsBiome" } },
+            { "DesertGroupBasic", new string[] { "ParadoxalBeachesBiome" } },
+            { "DesertGroupAdvanced", new string[] { "ParadoxalBeachesBiome", "SandShoalsBiome" } },
+            //{ "FlatsGroupBasic", new string[] {  } },
+            { "MountainsGroupBasic", new string[] { "WindingMoundsBiome"} },
+            { "MountainsGroupAdvanced", new string[] { "WindingMoundsBiome", "JaggedSeasBiome" } },
+            { "PillarsGroup", new string[] { "PillarsShoreBiome" } },
+            { "IceGroupAdvanced", new string[] { "ArcticFractureBiome" } },
+            { "Biome7Group", new string[] { "ImpactSeaBiome" } },
+        };
 
         private static FieldInfo distWeight = typeof(BiomeGroup).GetField("m_WeightingByDistance", BindingFlags.Instance | BindingFlags.NonPublic);
         public static void ResetBiomeTrotter()
@@ -173,7 +176,7 @@ Biome #21 - SmallCraters_Biome
         }
         public static void CleanupMess()
         {
-            foreach (var item in Seabiomes)
+            foreach (var item in SeabiomeToWeight)
             {
                 if (LowerTerrainHeightClamped.ContainsKey(item.Key.HeightMapGenerator))
                 {
@@ -188,14 +191,6 @@ Biome #21 - SmallCraters_Biome
                 return;
             if (ObjectTypesWaterVariants == null)
             {
-                try
-                {
-                    TAC_AI.KickStart.TerrainHeight = TerrainOperations.TileHeightRescaled;
-                    TAC_AI.KickStart.TerrainHeightOffset = TerrainOperations.TileYOffsetRescaled;
-                }
-                catch (Exception)
-                {
-                }
                 ObjectTypesWaterVariants = new Dictionary<string, string>();
                 foreach (var item in SpawnHelper.IterateSceneryTypes())
                 {
@@ -214,6 +209,7 @@ Biome #21 - SmallCraters_Biome
                 }
             }
             InsureInit();
+            //Debug_TTExt.ShouldLogBiomeGen = true;
             applied = true;
             int errorCode = 0;
             try
@@ -224,12 +220,11 @@ Biome #21 - SmallCraters_Biome
                     DebugWater.Log("REBOOT OCEAN");
                     appended = false;
                     RemoveOceanicBiomes(biomesMain);
-                    Seabiomes = null;
+                    SeabiomeToWeight = null;
                 }
                 else if (ready)
                     return;
                 OnClampTerrain.Subscribe(CleanupMess);
-                TerrainOperations.BeachingMode = true;
 
                 DebugWater.Log("Ocean man why don't you take me by the hand~");
                 if (biomesMain == null)
@@ -278,9 +273,10 @@ Biome #21 - SmallCraters_Biome
                     else
                         biomes = ((Biome[])biomesAll.GetValue(biomesDataGet)).ToList();
                     errorCode++;
-                    if (Seabiomes == null)
+                    if (SeabiomeToWeight == null)
                     {
-                        Seabiomes = new Dictionary<Biome, float>();
+                        SeabiomesByName = new Dictionary<string, Biome>();
+                        SeabiomeToWeight = new Dictionary<Biome, float>();
                         errorCode++;
                         for (int step = 0; step < biomes.Count; step++)
                         {
@@ -292,16 +288,18 @@ Biome #21 - SmallCraters_Biome
                             }
                         }
                         errorCode++;
-                        DebugWater.LogGen("Generating new biomes...");
+                        DebugWater.LogGen("Getting current biomes...");
                         for (int step = 0; step < biomes.Count; step++)
                         {
                             var item = biomes[step];
                             DebugWater.LogGen("Biome #" + step + " - " + item.name);
                         }
+                        DebugWater.LogGen("Generating new biomes...");
                         errorCode = 300;
                         foreach (var item in ApplyOceanicBiomes(biomes))
                         {
-                            Seabiomes.Add(item.Key, item.Value);
+                            SeabiomesByName.Add(item.Key.name, item.Key);
+                            SeabiomeToWeight.Add(item.Key, item.Value);
                             errorCode++;
                         }
 
@@ -309,11 +307,11 @@ Biome #21 - SmallCraters_Biome
                         //    biomesAll.SetValue(biomesDataGet, biomes.ToArray());
                         //errorCode++;
                         //biomesAll2.SetValue(biomesMain, biomes.ToArray());
-                        Biome[] biomeShoehorn = new Biome[Seabiomes.Count];
-                        float[] biomeWeights = new float[Seabiomes.Count];
-                        for (int i = 0; i < Seabiomes.Count; i++)
+                        Biome[] biomeShoehorn = new Biome[SeabiomeToWeight.Count];
+                        float[] biomeWeights = new float[SeabiomeToWeight.Count];
+                        for (int i = 0; i < SeabiomeToWeight.Count; i++)
                         {
-                            var stepC = Seabiomes.ElementAt(i);
+                            var stepC = SeabiomeToWeight.ElementAt(i);
                             biomeShoehorn[i] = stepC.Key;
                             biomeWeights[i] = stepC.Value;
                         }
@@ -322,7 +320,7 @@ Biome #21 - SmallCraters_Biome
                         AnimationCurve AC = AnimationCurve.Linear(0f, 1f, 100f, 0f); //new AnimationCurve();
                         distWeight.SetValue(seaBiomeGroup, AC);
 
-                        foreach (var item in Seabiomes)
+                        foreach (var item in SeabiomeToWeight)
                         {
                             biomes.Add(item.Key);
                         }
@@ -351,10 +349,10 @@ Biome #21 - SmallCraters_Biome
                                     continue;
                                 }
 
-                                Array.Resize(ref biomes2, biomes2.Length + Seabiomes.Count);
-                                for (int step2 = 0; step2 < Seabiomes.Count; step2++)
+                                Array.Resize(ref biomes2, biomes2.Length + SeabiomeToWeight.Count);
+                                for (int step2 = 0; step2 < SeabiomeToWeight.Count; step2++)
                                 {
-                                    biomes2[biomes2.Length - (step2 + 1)] = Seabiomes.ElementAt(step2).Key;
+                                    biomes2[biomes2.Length - (step2 + 1)] = SeabiomeToWeight.ElementAt(step2).Key;
                                 }
                                 biomesInside.SetValue(item, biomes2);
                                 DebugWater.LogGen("Biomes added!");
@@ -366,10 +364,10 @@ Biome #21 - SmallCraters_Biome
                                     continue;
                                 }
 
-                                Array.Resize(ref biomesWeightsCached, biomesWeightsCached.Length + Seabiomes.Count);
-                                for (int step2 = 0; step2 < Seabiomes.Count; step2++)
+                                Array.Resize(ref biomesWeightsCached, biomesWeightsCached.Length + SeabiomeToWeight.Count);
+                                for (int step2 = 0; step2 < SeabiomeToWeight.Count; step2++)
                                 {
-                                    biomesWeightsCached[biomes2.Length - (step2 + 1)] = Seabiomes.ElementAt(step2).Value;
+                                    biomesWeightsCached[biomes2.Length - (step2 + 1)] = SeabiomeToWeight.ElementAt(step2).Value;
                                 }
                                 biomesWeights.SetValue(item, biomesWeightsCached);
                                 DebugWater.LogGen("Biome weights added!");
@@ -394,8 +392,7 @@ Biome #21 - SmallCraters_Biome
                             DebugWater.Log("Biome Group " + (item.name.NullOrEmpty() ? "<NULL>" : item.name));
                             try
                             {
-                                KeyValuePair<Biome, float> newBiome = TryGetPondBiome(item.name, biomes);
-                                if (newBiome.Key != null)
+                                if (BiomesToAppend.TryGetValue(item.name, out var seaBiomeNames))
                                 {
                                     Biome[] biomes2 = (Biome[])biomesInside.GetValue(item);
                                     if (biomes2 == null)
@@ -417,13 +414,19 @@ Biome #21 - SmallCraters_Biome
                                             " - " + biomesWeightsCached[step2].ToString());
                                     }
 
-                                    Array.Resize(ref biomes2, biomes2.Length + 1);
-                                    biomes2[biomes2.Length - 1] = newBiome.Key;
+                                    Array.Resize(ref biomes2, biomes2.Length + seaBiomeNames.Length);
+                                    for (int i = 0; i < seaBiomeNames.Length; i++)
+                                    {
+                                        biomes2[biomes2.Length - (1 + i)] = SeabiomesByName[seaBiomeNames[i]];
+                                    }
                                     biomesInside.SetValue(item, biomes2);
                                     DebugWater.LogGen("Biomes added!");
 
-                                    Array.Resize(ref biomesWeightsCached, biomesWeightsCached.Length + 1);
-                                    biomesWeightsCached[biomes2.Length - 1] = newBiome.Value;
+                                    Array.Resize(ref biomesWeightsCached, biomesWeightsCached.Length + seaBiomeNames.Length);
+                                    for (int i = 0; i < seaBiomeNames.Length; i++)
+                                    {
+                                        biomesWeightsCached[biomes2.Length - (1 + i)] = SeabiomeToWeight[SeabiomesByName[seaBiomeNames[i]]];
+                                    }
                                     biomesWeights.SetValue(item, biomesWeightsCached);
                                     DebugWater.LogGen("Biome weights added!");
                                 }
@@ -454,9 +457,9 @@ Biome #21 - SmallCraters_Biome
                                 continue;
                             }
 
-                            for (int step2 = 0; step2 < Seabiomes.Count; step2++)
+                            for (int step2 = 0; step2 < SeabiomeToWeight.Count; step2++)
                             {
-                                biomesWeightsCached[biomes2.Length - (step2 + 1)] = Seabiomes.ElementAt(step2).Value;
+                                biomesWeightsCached[biomes2.Length - (step2 + 1)] = SeabiomeToWeight.ElementAt(step2).Value;
                             }
                             biomesWeights.SetValue(item, biomesWeightsCached);
                         }
@@ -473,8 +476,7 @@ Biome #21 - SmallCraters_Biome
                             DebugWater.Log("Biome Group " + (item.name.NullOrEmpty() ? "<NULL>" : item.name));
                             try
                             {
-                                KeyValuePair<Biome, float> newBiome = TryGetPondBiome(item.name, biomes);
-                                if (newBiome.Key != null)
+                                if (BiomesToAppend.TryGetValue(item.name, out var seaBiomeNames))
                                 {
                                     Biome[] biomes2 = (Biome[])biomesInside.GetValue(item);
                                     if (biomes2 == null)
@@ -496,12 +498,17 @@ Biome #21 - SmallCraters_Biome
                                             " - " + biomesWeightsCached[step2].ToString());
                                     }
 
-                                    biomes2[biomes2.Length - 1] = newBiome.Key;
+                                    for (int i = 0; i < seaBiomeNames.Length; i++)
+                                    {
+                                        biomes2[biomes2.Length - (1 + i)] = SeabiomesByName[seaBiomeNames[i]];
+                                    }
                                     biomesInside.SetValue(item, biomes2);
                                     DebugWater.LogGen("Biomes added!");
 
-                                    Array.Resize(ref biomesWeightsCached, biomesWeightsCached.Length + 1);
-                                    biomesWeightsCached[biomes2.Length - 1] = newBiome.Value;
+                                    for (int i = 0; i < seaBiomeNames.Length; i++)
+                                    {
+                                        biomesWeightsCached[biomes2.Length - (1 + i)] = SeabiomeToWeight[SeabiomesByName[seaBiomeNames[i]]];
+                                    }
                                     biomesWeights.SetValue(item, biomesWeightsCached);
                                     DebugWater.LogGen("Biome weights added!");
                                 }
@@ -530,7 +537,6 @@ Biome #21 - SmallCraters_Biome
             applied = false;
             try
             {
-                TerrainOperations.BeachingMode = false;
                 DebugWater.Log("Ocean man why don't you take me by the hand~");
                 if (biomesMain == null)
                 {
@@ -565,7 +571,7 @@ Biome #21 - SmallCraters_Biome
                             DebugWater.Log("NULL Biome Weights?");
                             continue;
                         }
-                        for (int step2 = 0; step2 < Seabiomes.Count; step2++)
+                        for (int step2 = 0; step2 < SeabiomeToWeight.Count; step2++)
                         {
                             biomesWeightsCached[biomes2.Length - (step2 + 1)] = 0;
                         }

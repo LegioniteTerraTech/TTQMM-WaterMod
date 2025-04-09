@@ -5,6 +5,9 @@ using UnityEngine;
 
 namespace WaterMod
 {
+    /// <summary>
+    /// For effects that use the water physics collider for accuraccy reasons
+    /// </summary>
     internal class WaterEffect : MonoBehaviour
     {
         public virtual void Ent(byte HeartBeat)
@@ -19,7 +22,10 @@ namespace WaterMod
         {
         }
     }
-    internal class WaterEffectFast : MonoBehaviour
+    /// <summary>
+    /// For effects that use a height-based tolerence to float.  Significantly cheaper.
+    /// </summary>
+    internal abstract class WaterEffectFast : MonoBehaviour
     {
         protected WaterEffectFast()
         {
@@ -30,7 +36,7 @@ namespace WaterMod
         protected void RemoteUpdate()
         {
             float height = trans.position.y;
-            if (height> ManWater.HeightCalc)
+            if (height > ManWater.HeightCalc + ManWater.SurfaceSkinning)
             {
                 UpdateAttached(SubState.Above);
             }
@@ -89,16 +95,11 @@ namespace WaterMod
             foreach (var item in GetComponentsInChildren<Collider>(true))
                 Physics.IgnoreCollision(ManWater.seaCol, item);
         }
-        public virtual void Enter()
-        {
-        }
+        public abstract void Enter();
 
-        public virtual void Exit()
-        {
-        }
+        public abstract void Exit();
 
-        public virtual void Stay()
-        {
-        }
+
+        public abstract void Stay();
     }
 }

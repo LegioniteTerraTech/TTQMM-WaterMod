@@ -16,6 +16,7 @@ namespace WaterMod
         }
 
         public static Dictionary<int, WeaponRound> projs;
+        public static HashSet<WaterObj> chunks = new HashSet<WaterObj>();
         public static void RemoteFixedUpdateAll()
         {
             if (projs == null)
@@ -30,13 +31,25 @@ namespace WaterMod
                 }
                 catch { }
             }
+            if (QPatch.EnableLooseBlocksFloat)
+            {
+                foreach (var item in chunks)
+                {
+                    try
+                    {
+                        item.RemoteUpdate();
+                    }
+                    catch { }
+                }
+            }
         }
 
-        //public TankEffect watertank;
-        public byte heartBeat = 0;
+        //public byte heartBeat = 0;
+        private byte Sleep = 0;
 
         public EffectTypes effectType;
         public Component effectBase;
+        public float initialDrag;
         public bool isProjectile = false;
         public Rigidbody _rbody;
         public Vector3 initVelocity;
@@ -57,6 +70,7 @@ namespace WaterMod
             else
                 WO.effectType = EffectTypes.NormalProjectile;
             WO._rbody = vis.rbody;
+            WO.initialDrag = WO._rbody.drag;
             WO.DisableCollideWithWater();
             return WO;
         }
@@ -64,17 +78,34 @@ namespace WaterMod
         {
             WaterObj WO = vis.GetComponent<WaterObj>();
             if (WO)
+            {
+                chunks.Add(WO);
                 return WO;
+            }
             WO = vis.gameObject.AddComponent<WaterObj>();
             WO.effectBase = vis;
             WO.effectType = EffectTypes.ResourceChunk;
-            WO._rbody = vis.rbody;
+            WO._rbody = vis.GetComponent<Rigidbody>();
+            WO.initialDrag = Globals.inst.airSpeedDrag;
             WO.DisableCollideWithWater();
+            vis.visible.RecycledEvent.Subscribe(WO.OnRecycled);
+            DebugWater.Assert("Tracking chunk");
+            chunks.Add(WO);
             return WO;
         }
         public void Reset()
         {
             UpdateAttached(SubState.Above);
+        }
+        private void OnRecycled(Visible vis)
+        {
+            var visOurs = ((ResourcePickup)effectBase).visible;
+            if (vis == visOurs)
+            {
+                visOurs.RecycledEvent.Unsubscribe(OnRecycled);
+                visOurs.ConditionalUpdater.FixedUpdateEvent.Unsubscribe(RemoteFixedUpdate);
+                chunks.Remove(this);
+            }
         }
 
         public void GetRBody()
@@ -101,71 +132,87 @@ namespace WaterMod
             }
         }
 
-        public override void Stay() //Stay(byte HeartBeat)
+        internal void SetDrag(bool active)
         {
             try
             {
-                /*
-                if (HeartBeat == heartBeat)
-                {
-                    return;
-                }
-
-                heartBeat = HeartBeat;*/
+                if (active)
                 {
                     switch (effectType)
                     {
                         case EffectTypes.NormalProjectile:
                             if (QPatch.TheWaterIsLava)
-                                _rbody.velocity *= 1f - (WaterGlobals.Density * WaterGlobals.BulletDampener * 3);
+                                _rbody.drag = initialDrag + (WaterGlobals.Density * WaterGlobals.BulletDampener * 3);
                             else
-                                _rbody.velocity *= 1f - (WaterGlobals.Density * WaterGlobals.BulletDampener);
+                                _rbody.drag = initialDrag + (WaterGlobals.Density * WaterGlobals.BulletDampener);
                             break;
 
                         case EffectTypes.MissileProjectile:
                             if (QPatch.TheWaterIsLava)
-                                _rbody.velocity *= 1f - (WaterGlobals.Density * WaterGlobals.MissileDampener * 3);
+                                _rbody.drag = initialDrag + (WaterGlobals.Density * WaterGlobals.MissileDampener * 3);
                             else
-                                _rbody.velocity *= 1f - (WaterGlobals.Density * WaterGlobals.MissileDampener);
+                                _rbody.drag = initialDrag + (WaterGlobals.Density * WaterGlobals.MissileDampener);
                             break;
 
                         case EffectTypes.ResourceChunk:
-                            if (QPatch.EnableLooseBlocksFloat)
-                            {
-                                if (ManWater.WorldMove)
-                                    return; // the world is treadmilling and we must ignore the delayed physics update to prevent fling
-                                float num2 = ManWater.HeightCalc - _rbody.position.y;
-                                num2 = num2 * Mathf.Abs(num2) + WaterGlobals.SurfaceSkinning;
-                                if (num2 >= -0.5f)
-                                {
-                                    if (num2 > 1.5f)
-                                    {
-                                        num2 = 1.5f;
-                                    }
-
-                                    if (num2 < -0.1f)
-                                    {
-                                        num2 = -0.1f;
-                                    }
-                                    Vector3 velo = Vector3.up * WaterGlobals.Density * num2 * WaterGlobals.ResourceBuoyancyMultiplier;
-                                    if (QPatch.TheWaterIsLava)
-                                        velo -= (_rbody.velocity * _rbody.velocity.magnitude * (1f - WaterGlobals.Density / 10000f)) * 0.0075f;
-                                    else
-                                        velo -= (_rbody.velocity * _rbody.velocity.magnitude * (1f - WaterGlobals.Density / 10000f)) * 0.0025f;
-                                    _rbody.AddForce(velo, ForceMode.Force);
-                                }
-                            }
+                            if (QPatch.TheWaterIsLava)
+                                _rbody.drag = initialDrag + (1f - WaterGlobals.Density * 3 / 10000f);
+                            else
+                                _rbody.drag = initialDrag + (1f - WaterGlobals.Density / 10000f);
                             break;
 
                         default:
                             break;
                     }
                 }
+                else
+                    _rbody.drag = initialDrag;
             }
             catch (Exception e)
             {
                 bool flag = _rbody == null;
-                DebugWater.Log("Exception in Stay: " + e.Message + "\n efectType: " + effectType.ToString() + (flag ? "\nRigidbody is null!" : ""));
+                DebugWater.Log("Exception in SetDrag: " + e.Message + "\n efectType: " + effectType.ToString() + (flag ? "\nRigidbody is null!" : ""));
+                if (flag)
+                {
+                    GetRBody();
+                }
+            }
+        }
+
+        public override void Stay() //Stay(byte HeartBeat)
+        { }
+        private void RemoteFixedUpdate()
+        {
+            try
+            {
+                if (ManWater.WorldMove)
+                    return; // the world is treadmilling and we must ignore the delayed physics update to prevent fling
+                if (_rbody.position.y - ManWater.HeightCalc > ManWater.minBlockSleepHeight && _rbody.velocity.Approximately(Vector3.zero, 0.25f))
+                {
+                    Sleep++;
+                    if (Sleep > 16)
+                        _rbody.Sleep();
+                }
+                else
+                {
+                    Sleep = 0;
+                    float Submerge = ManWater.HeightCalc - _rbody.position.y;
+                    Submerge = Submerge * Mathf.Abs(Submerge) + WaterGlobals.SurfaceSkinning;
+                    if (Submerge >= -0.5f)
+                    {
+                        if (Submerge > 1.5f)
+                            Submerge = 1.5f;
+
+                        if (Submerge < -0.1f)
+                            Submerge = -0.1f;
+                        _rbody.AddForce(Vector3.up * WaterGlobals.Density * Submerge * WaterGlobals.ResourceBuoyancyMultiplier, ForceMode.Force);
+                    }
+                }
+            }
+            catch (Exception e)
+            {
+                bool flag = _rbody == null;
+                //DebugWater.Log("Exception in RemoteFixedUpdate: " + e.Message + "\n efectType: " + effectType.ToString() + (flag ? "\nRigidbody is null!" : ""));
                 if (flag)
                 {
                     GetRBody();
@@ -181,45 +228,51 @@ namespace WaterMod
         {
             try
             {
+                if (!_rbody)
+                    GetRBody();
                 if (set)
                 {
-                    WaterParticleHandler.SplashAtPos(new Vector3(effectBase.transform.position.x, ManWater.HeightCalc + WaterParticleHandler.offsetHeightSplash, effectBase.transform.position.z), _rbody.velocity.y, -0.25f);
+                    if (_rbody)
+                        WaterParticleHandler.SplashAtPos(new Vector3(effectBase.transform.position.x, ManWater.HeightCalc + WaterParticleHandler.offsetHeightSplash, effectBase.transform.position.z), _rbody.velocity.y, -0.25f);
                 }
                 else
-                {
                     set = true;
-                }
-                if (effectType < EffectTypes.LaserProjectile)
+                SetDrag(true);
+
+                ManTimedEvents.ManagedEvent managedEvent;
+                switch (effectType)
                 {
-                    return;
+                    case EffectTypes.ResourceChunk:
+                        ((ResourcePickup)effectBase).visible.ConditionalUpdater.FixedUpdateEvent.Subscribe(RemoteFixedUpdate);
+                        break;
+                    case EffectTypes.NormalProjectile:
+                        break;
+                    case EffectTypes.LaserProjectile:
+                        // Laser debuff
+                        initVelocity = _rbody.velocity;
+                        _rbody.velocity = initVelocity * (1f / (WaterGlobals.Density * WaterGlobals.LaserFraction + 1f));
+
+                        //  Erad laser
+                        //(effectBase as LaserProjectile).HandleCollision(null, gameObject.transform.position, null, true);
+
+                        //(effectBase as LaserProjectile).SetInstanceField("m_TimeoutDestroyEvent", managedEvent2);
+                        managedEvent = (ManTimedEvents.ManagedEvent)ProjectileEvent.GetValue(effectBase as Projectile);
+                        managedEvent.Reset(managedEvent.TimeRemaining * 4);
+                        break;
+                    case EffectTypes.MissileProjectile:
+                        managedEvent = (ManTimedEvents.ManagedEvent)BoosterEvent.GetValue((MissileProjectile)this.effectBase);
+                        if (managedEvent.TimeRemaining != 0)
+                        {
+                            managedEvent.Reset(managedEvent.TimeRemaining * 4f);
+                        }
+                        //((MissileProjectile)this.effectBase).SetInstanceField("m_BoosterDeactivationEvent", managedEvent);
+                        _rbody.useGravity = false;
+                        managedEvent = (ManTimedEvents.ManagedEvent)ProjectileEvent.GetValue(effectBase as Projectile);
+                        managedEvent.Reset(managedEvent.TimeRemaining * 5);
+                        break;
+                    default:
+                        throw new NotImplementedException(effectType + " is not implemented");
                 }
-                float destroyMultiplier = 4f;
-                if (effectType == EffectTypes.MissileProjectile)
-                {
-                    destroyMultiplier += 1f;
-                    var managedEvent = (ManTimedEvents.ManagedEvent)BoosterEvent.GetValue((MissileProjectile)this.effectBase);
-                    if (managedEvent.TimeRemaining != 0)
-                    {
-                        managedEvent.Reset(managedEvent.TimeRemaining * 4f);
-                    }
-                    //((MissileProjectile)this.effectBase).SetInstanceField("m_BoosterDeactivationEvent", managedEvent);
-                    _rbody.useGravity = false;
-                }
-                else
-                {   // Laser debuff
-                    initVelocity = _rbody.velocity;
-                    _rbody.velocity = initVelocity * (1f / (WaterGlobals.Density * WaterGlobals.LaserFraction + 1f));
-
-                    //  Erad laser
-                    //(effectBase as LaserProjectile).HandleCollision(null, gameObject.transform.position, null, true);
-
-                    //(effectBase as LaserProjectile).SetInstanceField("m_TimeoutDestroyEvent", managedEvent2);
-                }
-                var managedEvent2 = (ManTimedEvents.ManagedEvent)ProjectileEvent.GetValue(this.effectBase as Projectile);
-                managedEvent2.Reset(managedEvent2.TimeRemaining * destroyMultiplier);
-
-                //(this.effectBase as LaserProjectile).SetInstanceField("m_TimeoutDestroyEvent", managedEvent2);
-
                 return;
             }
             catch //(Exception e)
@@ -241,40 +294,48 @@ namespace WaterMod
         {
             try
             {
+                if (!_rbody)
+                    GetRBody();
                 if (!set)
                 {
                     set = true;
                 }
-                WaterParticleHandler.SplashAtPos(new Vector3(effectBase.transform.position.x, ManWater.HeightCalc + WaterParticleHandler.offsetHeightSplash, effectBase.transform.position.z), _rbody.velocity.y, -0.25f);
+                if (_rbody)
+                    WaterParticleHandler.SplashAtPos(new Vector3(effectBase.transform.position.x, ManWater.HeightCalc + WaterParticleHandler.offsetHeightSplash, effectBase.transform.position.z), _rbody.velocity.y, -0.25f);
 
-                if (effectType < EffectTypes.LaserProjectile)
-                {
-                    return;
-                }
-                float destroyMultiplier = 4f;
-                if (effectType == EffectTypes.MissileProjectile)
-                {
-                    destroyMultiplier += 1f;
-                    var managedEvent = (ManTimedEvents.ManagedEvent)BoosterEvent.GetValue(this.effectBase as MissileProjectile);
-                    if (managedEvent.TimeRemaining == 0f)
-                    {
-                        _rbody.useGravity = true;
-                    }
-                    else
-                    {
-                        managedEvent.Reset(managedEvent.TimeRemaining * .25f);
-                    }
-                    //(this.effectBase as MissileProjectile).SetInstanceField("m_BoosterDeactivationEvent", managedEvent);
-                }
-                else
-                {   // Laser debuff
-                    _rbody.velocity = initVelocity * (WaterGlobals.Density * 0.025f * WaterGlobals.LaserFraction + 1f);
-                }
-                var managedEvent2 = (ManTimedEvents.ManagedEvent)ProjectileEvent.GetValue(this.effectBase as Projectile);
-                managedEvent2.Reset(managedEvent2.TimeRemaining / destroyMultiplier);
-                //(this.effectBase as Projectile).SetInstanceField("m_TimeoutDestroyEvent", managedEvent2);
+                SetDrag(false);
 
-                return;
+                ManTimedEvents.ManagedEvent managedEvent;
+                switch (effectType)
+                {
+                    case EffectTypes.ResourceChunk:
+                        ((ResourcePickup)effectBase).visible.ConditionalUpdater.FixedUpdateEvent.Unsubscribe(RemoteFixedUpdate);
+                        break;
+                    case EffectTypes.NormalProjectile:
+                        break;
+                    case EffectTypes.LaserProjectile:
+                        // Laser debuff
+                        _rbody.velocity = initVelocity * (WaterGlobals.Density * 0.025f * WaterGlobals.LaserFraction + 1f);
+                        managedEvent = (ManTimedEvents.ManagedEvent)ProjectileEvent.GetValue(this.effectBase as Projectile);
+                        managedEvent.Reset(managedEvent.TimeRemaining / 4);
+                        //(this.effectBase as Projectile).SetInstanceField("m_TimeoutDestroyEvent", managedEvent);
+                        break;
+                    case EffectTypes.MissileProjectile:
+                        managedEvent = (ManTimedEvents.ManagedEvent)BoosterEvent.GetValue(this.effectBase as MissileProjectile);
+                        if (managedEvent.TimeRemaining == 0f)
+                        {
+                            _rbody.useGravity = true;
+                        }
+                        else
+                        {
+                            managedEvent.Reset(managedEvent.TimeRemaining * .25f);
+                        }
+                        //(this.effectBase as MissileProjectile).SetInstanceField("m_BoosterDeactivationEvent", managedEvent);
+                        managedEvent = (ManTimedEvents.ManagedEvent)ProjectileEvent.GetValue(this.effectBase as Projectile);
+                        managedEvent.Reset(managedEvent.TimeRemaining / 5);
+                        //(this.effectBase as Projectile).SetInstanceField("m_TimeoutDestroyEvent", managedEvent);
+                        break;
+                }
             }
             catch //(Exception e)
             {
@@ -284,7 +345,6 @@ namespace WaterMod
                 {
                     GetRBody();
                 }
-                return;
             }
         }
     }

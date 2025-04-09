@@ -57,7 +57,7 @@ namespace WaterMod
     /// Was WaterBuoyancy 
     ///   Note: Can make more efficent by localizing the float vector in relation to water
     /// </summary>
-    internal class ManWater : MonoBehaviour, IWorldTreadmill
+    internal class ManWater : MonoBehaviour
     {
         private const float physicsZoneSize = 65536f;//4096f
 
@@ -74,7 +74,8 @@ namespace WaterMod
         public static Color waterColorBright = new Color(Brightener, Brightener, Brightener, 0) * (new Color(1,1,1,1) - waterColor) + waterColor - new Color(0, 0, 0, 0.5f);
         public static Color lavaColor = new Color(0.97f, 0.41f, 0.024f, 0.9f);
         public static Color lavaColorBright = new Color(Brightener, Brightener, Brightener, 0) * (new Color(1, 1, 1, 1) - lavaColor) + lavaColor - new Color(0,0,0,0.5f);
-
+        public static EventNoParams WaterFixedUpdate = new EventNoParams();
+        public static EventNoParams WaterLateUpdate = new EventNoParams();
 
         public static Texture2D CameraFilter;
         public static Texture2D CameraFilterLava; 
@@ -86,17 +87,26 @@ namespace WaterMod
             get
             {
                 if (QPatch.OceanMan2)
-                    return -50;
+                {
+                    if (UseStandards)
+                        return -50;
+                    else
+                        return heightOcean;
+                }
                 return height;
             }
             set
             {
                 UpdateHeightCalc();
-                height = value;
+                if (QPatch.OceanMan2)
+                    heightOcean = value;
+                else
+                    height = value;
             }
         }
         public static float height = -25f;
-        public static float minimumBlockSleepHeight = height + BlockSleepHeightOffset;
+        public static float heightOcean = -25f;
+        public static float minBlockSleepHeight = HeightCalc + BlockSleepHeightOffset;
         public static float BlockSleepHeightOffset = -8f;
 
 
@@ -678,6 +688,17 @@ namespace WaterMod
         private static Dictionary<IntVector2, WaterTile> ActiveWaterTiles = new Dictionary<IntVector2, WaterTile>();
 
 
+        public static void UpdateFixedMain() => WaterFixedUpdate.Send();
+        public static void UpdateLateMain()
+        {
+            WaterLateUpdate.Send();
+            /*
+            if (WorldDidMove)
+                WorldDidMove = false;
+            else*/
+            if (WorldMove)
+                WorldMove = false;
+        }
         public static void Initiate()
         {
             try
@@ -691,11 +712,13 @@ namespace WaterMod
                 ManWorld.inst.TileManager.TileDepopulatedEvent.Subscribe(OnTileDepopulated);
                 // */
                 ManGameMode.inst.ModeStartEvent.Subscribe(OnModeFinishedLoading);
+                ManUpdate.inst.AddAction(ManUpdate.Type.FixedUpdate, ManUpdate.Order.First, UpdateFixedMain, -9001);
+                ManUpdate.inst.AddAction(ManUpdate.Type.Update, ManUpdate.Order.Last, UpdateLateMain, 9001);
                 foreach (var item in FindObjectsOfType<Tank>())
                 {
                     WaterTank.Insure(item);
                 }
-                ManWorldTreadmill.inst.AddWorldSpaceObject(new WaterParticleHandler());
+                //ManWorldTreadmill.inst.AddWorldSpaceObject(new WaterParticleHandler());
             }
             catch (Exception e)
             {
@@ -848,6 +871,7 @@ namespace WaterMod
         private WaterGUI waterGUI;
         //public static GameObject surface;
         internal static bool WorldMove = false;
+        internal static bool WorldDidMove = false;
 
         internal class WaterGUI : MonoBehaviour
         {
@@ -920,12 +944,12 @@ namespace WaterMod
             if (IsActive)
             {
                 heightCalc = Height + (rainFlood * floodHeightMultiplier);
-                minimumBlockSleepHeight = Height + BlockSleepHeightOffset;
+                minBlockSleepHeight = Height + BlockSleepHeightOffset;
             }
             else
             {
                 heightCalc = -1024f;
-                minimumBlockSleepHeight = -1024f;
+                minBlockSleepHeight = -1024f;
                 heightCalcSet = -1024f;
             }
             SetWaterHeight(heightCalc);
@@ -1315,6 +1339,7 @@ namespace WaterMod
                 DebugWater.Log("World beginning shift");
                 PistonHeart = !PistonHeart;
                 WorldMove = true;
+                WorldDidMove = true;
                 CompensateForTreadmill();
             }
             catch (Exception e)
@@ -1322,35 +1347,36 @@ namespace WaterMod
                 throw new Exception("WorldShift failed", e);
             }
         }
-        public void OnMoveWorldOrigin(IntVector3 delta)
-        {
-            try
-            {
-                WaterParticleHandler.TreadmillAllParticles(delta);
-                WorldPosOffset += delta;
-                foreach (var item in matsMain)
-                    item.SetVector(ID, WorldPosOffset);
-            }
-            catch (Exception e)
-            {
-                throw new Exception("OnMoveWorldOrigin failed", e);
-            }
-        }
+        
         internal static void WorldShiftEnd(IntVector3 vec)
         {
             try
             {
-                WorldMove = false;
                 foreach (var item in ActiveWaterTiles)
                 {
                     item.Value.UpdateTileTreadmill(vec);
                 }
+                OnMoveWorldOrigin(vec);
                 //WaterBlock.MassApplyForces();
                 DebugWater.Log("World ended shift");
             }
             catch (Exception e)
             {
                 throw new Exception("WorldShiftEnd failed", e);
+            }
+        }
+        public static void OnMoveWorldOrigin(IntVector3 delta)
+        {
+            try
+            {
+                WaterParticleHandler.OnMoveWorldOrigin(delta);
+                WorldPosOffset -= delta;
+                foreach (var item in matsMain)
+                    item.SetVector(ID, WorldPosOffset);
+            }
+            catch (Exception e)
+            {
+                throw new Exception("OnMoveWorldOrigin failed", e);
             }
         }
 

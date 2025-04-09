@@ -179,7 +179,7 @@
     <Compile Include="MainPatches.cs" />
     <Compile Include="NetworkHandler.cs" />
     <Compile Include="OBJParser.cs" />
-    <Compile Include="OceanFormer.cs" />
+    <Compile Include="ManOceanGenerator.cs" />
     <Compile Include="QPatch.cs" />
     <Compile Include="RemoveScenery.cs" />
     <Compile Include="WaterBlock.cs" />

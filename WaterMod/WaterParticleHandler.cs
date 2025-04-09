@@ -3,11 +3,24 @@ using UnityEngine;
 using System.IO;
 using System;
 using TerraTechETCUtil;
+using System.Net.NetworkInformation;
 
 namespace WaterMod
 {
-    public class WaterParticleHandler : WorldSpaceObjectBase
+    public class WaterParticleHandler
     {
+        public const float SplashStartScale = 1f;//3f; // 1.0f;
+        public const float SplashPeakScale = 8f;//16f; // 1.0f;
+        public const float SurfaceLifetime = 2.5f;
+        public const float SurfaceRateOverDist = 0.2f;//0.5f;
+        public const float SurfaceScaleMin = 0.925f;
+        public const float SurfaceColorInTime = 0.1f;
+        public const float SurfaceExpandFadeInTime = 0.225f;
+        public const float SurfaceFadeOutTime = 0.6f;
+        public const float SurfaceFadeOutRate = 1f / (SurfaceFadeOutTime - (SurfaceExpandFadeInTime - SurfaceColorInTime));
+        public static ParticleSystem.MinMaxCurve SurfaceRandomRot = new ParticleSystem.MinMaxCurve(0, Mathf.Deg2Rad * 360);
+
+
         public static bool UseAlternateSplash = false;
         public const float offsetHeightSplash = -0.1f;
         public static float offsetHeightSurface => ManWater.CameraSubmerged ? offsetHeightSurfaceMainInv : offsetHeightSurfaceMain;
@@ -34,8 +47,10 @@ namespace WaterMod
         };
         public static float BubblesMaxRenderSize = 0.4f;//0.15f;
 
-        public static Material blurredMat;
-        public static Material blurredMatLava;
+        public static Shader WaterShaderDay;
+        public static Shader WaterShaderNight;
+        public static Material WaterMat;
+        public static Material LavaMat;
         public static Material spriteMaterial;
         public static Material bubbleMaterial;
         private static GameObject FXFolder;
@@ -52,13 +67,22 @@ namespace WaterMod
                 new Gradient()
                 {
                     alphaKeys = new GradientAlphaKey[] {
-                    new GradientAlphaKey(1f, 0f),
-                    new GradientAlphaKey(0.3f, 0.25f),
+                    new GradientAlphaKey(0f, 0f),
+                    new GradientAlphaKey(1f, SurfaceColorInTime / SurfaceLifetime),
+                    new GradientAlphaKey(1f, SurfaceExpandFadeInTime / SurfaceLifetime),
+                    new GradientAlphaKey(1f, SurfaceFadeOutTime / SurfaceLifetime),
+                    new GradientAlphaKey(0.15f, Mathf.Lerp(SurfaceFadeOutTime / SurfaceLifetime, 1f, 0.125f)),
+                    new GradientAlphaKey(0.075f, Mathf.Lerp(SurfaceFadeOutTime / SurfaceLifetime, 1f, 0.66666f)),
                     new GradientAlphaKey(0f, 1f)
                     },
                     colorKeys = new GradientColorKey[] {
-                    new GradientColorKey(new Color(0.561f, 0.937f, 0.875f), 0.5f),
-                    new GradientColorKey(new Color(0f, 0.69f, 1f), 1f)
+                    new GradientColorKey(new Color(1f, 1f, 1f), 0f),
+                    new GradientColorKey(new Color(1f, 1f, 1f), SurfaceColorInTime / SurfaceLifetime),
+                    new GradientColorKey(new Color(1f, 1f, 1f), SurfaceExpandFadeInTime / SurfaceLifetime),
+                    new GradientColorKey(new Color(1f, 1f, 1f), SurfaceFadeOutTime / SurfaceLifetime),
+                    new GradientColorKey(new Color(1f, 1f, 1f), Mathf.Lerp(SurfaceFadeOutTime / SurfaceLifetime, 1f, 0.125f)),
+                    new GradientColorKey(new Color(1f, 1f, 1f), Mathf.Lerp(SurfaceFadeOutTime / SurfaceLifetime, 1f, 0.66666f)),
+                    new GradientColorKey(new Color(1f, 1f, 1f), 1f)
                     },
                     mode = GradientMode.Blend
                 });
@@ -93,9 +117,22 @@ namespace WaterMod
             CreateSurface();
             CreateBubbleStreams();
             DebugWater.Log("WaterMod: Created Water Effects");
+
+            //ManWorldTreadmill.inst.OnAfterWorldOriginMoved.Subscribe(OnMoveWorldOrigin);
+            //DebugWater.Log("WaterMod: Subscribed to WorldTreadmill");
+
+            ManTimeOfDay.inst.DayNightChangedEvent.Subscribe(SetWaterShaderTimed);
         }
+        private static void SetWaterShaderTimed(bool night)
+        {
+            if (night)
+                WaterMat.shader = WaterShaderNight;
+            else
+                WaterMat.shader = WaterShaderDay;
+        }
+
         public static ParticleSystem.Particle[] particleHandler = new ParticleSystem.Particle[500];
-        public static void TreadmillParticles(IntVector3 toChange, ParticleSystem item)
+        private static void TreadmillParticles(IntVector3 toChange, ParticleSystem item)
         {
             ParticleSystem.Particle[] cached = particleHandler;
             if (item.particleCount > 0)
@@ -113,14 +150,11 @@ namespace WaterMod
             }
         }
 
-        public override void OnMoveWorldOrigin(IntVector3 toChange)
+        internal static void OnMoveWorldOrigin(IntVector3 toChange)
         {
             SurfacePool.TreadmillManagedParticles(toChange);
             TreadmillParticles(toChange, FXSplash);
             TreadmillParticles(toChange, FXBubbleStreams);
-        }
-        public static void TreadmillAllParticles(IntVector3 toChange)
-        {
         }
 
         private static void CreateSpriteMaterial()
@@ -137,34 +171,50 @@ namespace WaterMod
             }
 
             spriteMaterial = new Material(material);
- 
-            //var materialClear = ResourcesHelper.GetMaterialFromBaseGameAllDeep("ClearPanel");
-            Shader watShader = ManWater.InsureGetShader("Legacy Shaders/Particles/Alpha Blended");
 
-            blurredMat = new Material(watShader)
+            // somewhat works
+            //Shader watShader = ManWater.InsureGetShader("Legacy Shaders/Transparent/VertexLit");
+            // Works
+            //var materialClear = ResourcesHelper.GetMaterialFromBaseGameAllDeep("ClearPanel");
+            //Shader watShader = ManWater.InsureGetShader("Legacy Shaders/Particles/Alpha Blended");
+
+            WaterShaderDay = ManWater.InsureGetShader("Legacy Shaders/Particles/Alpha Blended");
+            WaterShaderNight = ManWater.InsureGetShader("Mobile/Particles/VertexLit Blended");
+
+            /*
+            foreach (var item in Resources.FindObjectsOfTypeAll<Material>())
             {
-                color = ManWater.waterColorBright,
+                if (item != null && !item.name.NullOrEmpty() && !item.shader.name.NullOrEmpty())
+                    DebugWater.Log("Material " + item.name + ", Shader " + item.shader.name);
+            }
+            */
+
+
+            WaterMat = new Material(WaterShaderDay)
+            {
+                color = Color.white,//ManWater.waterColorBright,
                 shaderKeywords = new string[] {},
             };
             //var tex = new Texture2D(0, 0);
             var tex = QPatch.ModHandle.GetModContainer().GetTextureFromModAssetBundle("Splash");//tex.LoadImage(File.ReadAllBytes(Path.Combine(QPatch.assets_path, "Splash.png")));
             tex.Apply();
-            blurredMat.mainTexture = tex;
-            blurredMat.EnableKeyword("_ALPHATEST_ON");
-            blurredMat.EnableKeyword("_ALPHABLEND_ON");
-            blurredMat.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-            blurredMat.DisableKeyword("_EMISSION");
-            blurredMat.SetColor("_Color", ManWater.waterColorBright);
-            blurredMat.SetColor("_EmissionColor", new Color(0.05f, 0.125f, 0.2f, 0));
+            WaterMat.mainTexture = tex;
+            WaterMat.EnableKeyword("_ALPHATEST_ON");
+            WaterMat.EnableKeyword("_ALPHABLEND_ON");
+            WaterMat.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+            WaterMat.DisableKeyword("_EMISSION");
+            WaterMat.SetColor("_Color", ManWater.waterColorBright);
+            WaterMat.SetColor("_EmissionColor", new Color(0.05f, 0.125f, 0.2f, 0));
             //blurredMat.SetColor("_EmissionColor", new Color(0.05f, 0.125f, 0.2f, 0.2f));
 
-            blurredMatLava = new Material(blurredMat)
+
+            LavaMat = new Material(WaterMat)
             {
                 color = ManWater.lavaColorBright,
             };
-            blurredMatLava.EnableKeyword("_EMISSION");
-            blurredMatLava.SetColor("_Color", ManWater.lavaColorBright);
-            blurredMatLava.SetColor("_EmissionColor", new Color(0.97f, 0.3f, 0.07f, 0.45f));
+            LavaMat.EnableKeyword("_EMISSION");
+            LavaMat.SetColor("_Color", ManWater.lavaColorBright);
+            LavaMat.SetColor("_EmissionColor", new Color(0.97f, 0.3f, 0.07f, 0.45f));
             Texture2D image = null;
             foreach (var item in Resources.FindObjectsOfTypeAll<Texture2D>())
             {
@@ -173,7 +223,7 @@ namespace WaterMod
             }
             if (image == null)
                 throw new NullReferenceException("t_sph_Liquid_oil_01 null");
-            bubbleMaterial = new Material(watShader)
+            bubbleMaterial = new Material(WaterShaderNight)
             {
                 mainTexture = image,
                 color = ManWater.waterColorBright,
@@ -185,8 +235,10 @@ namespace WaterMod
             var ps = oSplash.AddComponent<ParticleSystem>();
 
             var m = ps.main;
+            m.startSize = SplashStartScale;
             m.simulationSpace = ParticleSystemSimulationSpace.World;
-            m.startLifetime = .8f;
+            m.startLifetime = 0.8f;
+            m.startRotation = new ParticleSystem.MinMaxCurve(0, Mathf.Deg2Rad * 360);
             m.startSize3D = true;
             m.playOnAwake = false;
             m.maxParticles = 500;
@@ -247,9 +299,9 @@ namespace WaterMod
                 c.color = WaterGradient;
             
             if (QPatch.TheWaterIsLava)
-                r.material = blurredMatLava;
+                r.material = LavaMat;
             else
-                r.material = blurredMat;
+                r.material = WaterMat;
             r.maxParticleSize = 20f;
 
             FXSplash = ps;
@@ -259,18 +311,21 @@ namespace WaterMod
         {
             var ps = oSurface.AddComponent<ParticleSystem>();
 
+
             var m = ps.main;
             m.simulationSpace = ParticleSystemSimulationSpace.World;
-            m.startSize = 1;
-            m.startLifetime = 2.5f;
+            m.startSize = SplashStartScale;
+            m.startLifetime = SurfaceLifetime;
+            m.startRotation = SurfaceRandomRot;
             m.playOnAwake = false; //change later
             m.maxParticles = 500;
             m.startSpeed = 0f;
             m.emitterVelocityMode = ParticleSystemEmitterVelocityMode.Transform;
 
             var e = ps.emission;
-            e.rateOverTime = 0.5f;
-            e.rateOverDistance = 0.5f;
+            e.rateOverTime = SurfaceFadeOutRate;
+            e.rateOverDistance = SurfaceRateOverDist;
+
 
             var s = ps.shape;
             s.shapeType = ParticleSystemShapeType.Circle;
@@ -286,7 +341,23 @@ namespace WaterMod
 
             var o = ps.sizeOverLifetime;
             o.enabled = true;
-            o.size = new ParticleSystem.MinMaxCurve(16f, AnimationCurve.Linear(0f, 0.05f, 1f, 1f));
+            o.separateAxes = false;
+            o.size = new ParticleSystem.MinMaxCurve()
+            {
+                mode = ParticleSystemCurveMode.TwoCurves,
+                curveMultiplier = SplashPeakScale,
+                curveMin = new AnimationCurve(
+                    new Keyframe(0, 0, 0, (SurfaceScaleMin / (SurfaceExpandFadeInTime / SurfaceLifetime)) / 24f),
+                    new Keyframe(SurfaceExpandFadeInTime / SurfaceLifetime, SurfaceScaleMin),
+                    new Keyframe(1f, SurfaceScaleMin)
+                ),
+                curveMax = new AnimationCurve(
+                    new Keyframe(0, 0, 0, (1f / (SurfaceExpandFadeInTime / SurfaceLifetime)) / 24f),
+                    new Keyframe(SurfaceExpandFadeInTime / SurfaceLifetime, 1f),
+                    new Keyframe(1f, 1f)
+                )
+            };
+            //o.size = new ParticleSystem.MinMaxCurve(SplashPeakScale, AnimationCurve.Linear(0f, 0.05f, 1f, 1f));
 
             /*
             var v = ps.velocityOverLifetime;
@@ -298,9 +369,9 @@ namespace WaterMod
             var r = ps.GetComponent<ParticleSystemRenderer>();
             r.renderMode = ParticleSystemRenderMode.HorizontalBillboard;
             if (QPatch.TheWaterIsLava)
-                r.material = blurredMatLava;
+                r.material = LavaMat;
             else
-                r.material = blurredMat;
+                r.material = WaterMat;
             r.maxParticleSize = 20f;
             //r.sortingOrder = -1;//Make the effects appear correctly
 
@@ -365,12 +436,12 @@ namespace WaterMod
             if (QPatch.TheWaterIsLava)
             {
                 c.color = LavaGradient;
-                blurredMat.SetColor("_EmissionColor", new Color(0.97f, 0.3f, 0.07f, 1f));
+                WaterMat.SetColor("_EmissionColor", new Color(0.97f, 0.3f, 0.07f, 1f));
             }
             else
             {
                 c.color = WaterGradient;
-                blurredMat.SetColor("_EmissionColor", new Color(0.05f, 0.125f, 0.2f, 0.2f));
+                WaterMat.SetColor("_EmissionColor", new Color(0.05f, 0.125f, 0.2f, 0.2f));
             }
             FXSplash = ps;
         }
@@ -442,26 +513,38 @@ namespace WaterMod
         {
             FXSplash.Clear();
             FXSurface.Clear();
+
         }
     }
 
     public class SurfacePool
     {
+        public const int InitPooled = 100;
+
         public static bool CanGrow = true;
         public static int MaxGrow = 500;
         private static List<Item> FreeList;
         public static HashSet<ParticleSystem> allActive = new HashSet<ParticleSystem>();
-        public static int Count { get; private set; }
-        public static int Available { get; set; }
+        public static int PooledCount { get; private set; }
+        public static int Available { get; internal set; }
 
-        public static void Initiate()
+        internal static void Initiate()
         {
-            Count = 0;
+            PooledCount = 0;
             Available = 0;
             FreeList = new List<Item>();
+            for (int i = 0; i < InitPooled; i++)
+            {
+                Item item = CreateNew(true);
+                item.PS.SetEmissionEnabled(false);
+                item.PS.Stop(false, ParticleSystemStopBehavior.StopEmittingAndClear);
+                item.Using = false;
+                item.gameObject.SetActive(false);
+                FreeList.Add(item);
+            }
         }
-
-        public static Item GetFromPool(float size)
+         
+        internal static Item GetFromPool(float size)
         {
             Item ps;
             ParticleSystem.MainModule main;
@@ -469,41 +552,33 @@ namespace WaterMod
             {
                 Available--;
                 ps = FreeList[Available];
-                ps.StartUsing();
                 FreeList.RemoveAt(Available);
                 ps.Size = size;
                 ps.UpdateMode();
                 return ps;
             }
-            if (Count >= MaxGrow)
+            if (PooledCount >= MaxGrow)
             {
                 return null;
             }
             ps = CreateNew(true);
-            ps.Size = size;
             ps.UpdateMode();
             return ps;
         }
 
-        public static void ReturnToPool(Item surface, bool Now = false)
+        internal static void ReturnToPool(Item surface, bool Now = false)
         {
-            ParticleSystem ps = surface.GetComponent<ParticleSystem>();
-            if (Now)
-                ps.Clear();
-            ps.Stop();
+            surface.FinishedUsing(Now);
             Available++;
-            FreeList.Add(surface);
-            allActive.Remove(ps);
-            surface.SetDestroy();
         }
-        public static void UpdateAllActiveParticlesMode()
+        internal static void UpdateAllActiveParticlesMode()
         {
             foreach (var item in allActive)
             {
                 item.GetComponent<Item>().UpdateMode();
             }
         }
-        public static void UpdateAllActiveParticles()
+        internal static void UpdateAllActiveParticles()
         {
             foreach (var item in allActive)
             {
@@ -522,8 +597,8 @@ namespace WaterMod
                 }
             }
         }
-        public static ParticleSystem.Particle[] particleHandler = new ParticleSystem.Particle[500];
-        public static void TreadmillManagedParticles(IntVector3 toChange)
+        private static ParticleSystem.Particle[] particleHandler = new ParticleSystem.Particle[500];
+        internal static void TreadmillManagedParticles(IntVector3 toChange)
         {
             ParticleSystem.Particle[] cached = particleHandler;
             foreach (var item in allActive)
@@ -548,16 +623,16 @@ namespace WaterMod
         {
             var s = UnityEngine.Object.Instantiate(WaterParticleHandler.oSurface);
             s.SetActive(SetActive);
-            Count++;
+            PooledCount++;
             var i = s.GetComponent<Item>();
-            i.Setup();
+            i.FirstSpawn();
             return i;
         }
 
         public class Item : MonoBehaviour
         {
-            public bool Enabled = true;
-            public bool Using = true;
+            public bool EnabledFrame = true;
+            public bool Using = false;
             public float Size = 1;
             public float Rate = 1;
             public ParticleSystem PS;
@@ -568,29 +643,34 @@ namespace WaterMod
                 var e = PS.emission;
                 e.rateOverDistance = 0.015f * Rate;
             }
-            public void SetDestroy()
+            internal void FinishedUsing(bool clearImmedeate)
             {
+                PS.SetEmissionEnabled(false);
+                PS.Stop(false, clearImmedeate ? ParticleSystemStopBehavior.StopEmittingAndClear : ParticleSystemStopBehavior.StopEmitting);
+                allActive.Remove(PS);
                 Using = false;
-                Invoke("Destroy", 2.5f);
+                Invoke("Repool", WaterParticleHandler.SurfaceLifetime);
+                FreeList.Add(this);
             }
 
-            private void Destroy()
+            private void Repool()
             {
                 if (!Using)
                 {
                     //AllList.Remove(this);
-                    gameObject.GetComponent<ParticleSystem>().Clear();
+                    PS.Clear();
                     gameObject.SetActive(false);
                 }
             }
 
-            public void UpdateMode()
+            internal void UpdateMode()
             {
                 var r = GetComponent<ParticleSystemRenderer>();
                 if (ManWater.CameraSubmerged)
                 {
                     var m = PS.main;
                     m.startSize = WaterParticleHandler.BubblesSpawnScale;
+                    m.startRotation = 0;
                     var e = PS.emission;
                     //e.rateOverTime = 0.0005f;
                     e.rateOverTime = 0.5f;
@@ -598,73 +678,74 @@ namespace WaterMod
                         e.rateOverDistance = 0.615f * Rate;
                     else
                         e.rateOverDistance = 0.615f + UnityEngine.Random.Range(0f,0.02f);
-                    e.rateOverDistanceMultiplier = 1;
                     r.renderMode = ParticleSystemRenderMode.Billboard;
                     r.maxParticleSize = WaterParticleHandler.BubblesMaxRenderSize;
                     r.material = WaterParticleHandler.bubbleMaterial;
+                    var si = PS.sizeOverLifetime;
+                    si.enabled = false;
                 }
                 else
                 {
                     var m = PS.main;
-                    m.startSize = Size;
+                    m.startSize = Size * WaterParticleHandler.SplashStartScale;
+                    m.startRotation = WaterParticleHandler.SurfaceRandomRot;
                     var e = PS.emission;
-                    e.rateOverTime = 0.5f;
-                    e.rateOverDistance = 0.5f;
-                    e.rateOverDistanceMultiplier = 1;
+                    e.rateOverTime = WaterParticleHandler.SurfaceFadeOutRate;
+                    e.rateOverDistance = WaterParticleHandler.SurfaceRateOverDist;
                     r.renderMode = ParticleSystemRenderMode.HorizontalBillboard;
                     r.maxParticleSize = 200;
                     if (QPatch.TheWaterIsLava)
-                        r.material = WaterParticleHandler.blurredMatLava;
+                        r.material = WaterParticleHandler.LavaMat;
                     else
-                        r.material = WaterParticleHandler.blurredMat;
+                        r.material = WaterParticleHandler.WaterMat;
                     var c = PS.colorOverLifetime;
                     if (QPatch.TheWaterIsLava)
                         c.color = WaterParticleHandler.LavaGradient;
                     else
                         c.color = WaterParticleHandler.WaterGradient;
+                    var si = PS.sizeOverLifetime;
+                    si.enabled = true;
                 }
             }
-            public void UpdatePos(Vector3 position)
+            internal void UpdatePos(Vector3 position)
             {
-                Using = true; 
-                if (ManWater.WorldMove == Enabled)
+                if (ManWater.WorldMove == EnabledFrame)
                 {
                     if (ManWater.WorldMove)
                     {
                         PS.SetEmissionEnabled(false);
                         var e = PS.emission;
                         e.rateOverDistance = 0;
-                        Enabled = false;
+                        EnabledFrame = false;
                     }
                 }
-                if (Enabled)
-                    transform.position = position + (Vector3.up * WaterParticleHandler.offsetHeightSurface);// keep it at the water level
-                if (ManWater.WorldMove == Enabled)
+                transform.position = position + (Vector3.up * WaterParticleHandler.offsetHeightSurface);// keep it at the water level
+                if (ManWater.WorldMove == EnabledFrame)
                 {
                     if (!ManWater.WorldMove)
                     {
+                        PS.SetEmissionEnabled(true);
                         UpdateMode();
-                        PS.SetEmissionEnabled(true); 
-                        Enabled = true;
+                        EnabledFrame = true;
                     }
                 }
             }
 
-            public void Setup()
+            internal void Setup()
+            {
+                Using = true;
+                UpdateMode();
+                allActive.Add(PS);
+                gameObject.SetActive(true);
+                PS.Clear();
+                PS.Stop(false, ParticleSystemStopBehavior.StopEmittingAndClear);
+                PS.Play();
+                PS.SetEmissionEnabled(true);
+            }
+            internal void FirstSpawn()
             {
                 if (!PS)
                     PS = gameObject.GetComponent<ParticleSystem>();
-                UpdateMode();
-                allActive.Add(PS);
-                PS.Clear(true);
-                PS.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
-                PS.Play();
-            }
-            public void StartUsing()
-            {
-                Using = true;
-                gameObject.SetActive(true);
-                Setup();
             }
         }
     }

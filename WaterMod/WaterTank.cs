@@ -184,7 +184,8 @@ namespace WaterMod
                 speedVol = tank.rbody.velocity.magnitude * 0.025f;
                 Audio.Volume = ManWater.WaterSound * Mathf.Clamp(speedVol * extentFactor * 0.0176f, 0.01f, 0.5f) * (ManWater.CameraSubmerged ? 0.76f : 1);
                 Audio.Pitch = Mathf.Clamp(0.1f + speedVol * 0.5f, 0.1f, 1.0f);
-                Audio.Range = Mathf.Clamp(10f + speedVol * extentFactor * 5f, 10f, 120f);
+                Audio.RangeMin = 9.9f;
+                Audio.RangeMax = Mathf.Clamp(10f + speedVol * extentFactor * 5f, 10f, 120f);
             }
             else
             {
@@ -198,8 +199,9 @@ namespace WaterMod
         private static MethodInfo lightCheck = typeof(ModuleLight).GetMethod("RefreshLightsActive", BindingFlags.Instance | BindingFlags.NonPublic);
         public void RemoteFixedUpdate()
         {
-            if (ManWater.WorldMove || tank.rbody == null)
+            if (ManWater.WorldMove || tank.rbody == null || (tank.Anchors.NumAnchored > tank.Anchors.NumSkyAnchored))
                 return; // the world is treadmilling and we must ignore the delayed physics update to prevent fling
+            // or we are static anchored and physics should not be applied to us
             foreach (var ite in tank.blockman.IterateBlocks())
             {
                 try

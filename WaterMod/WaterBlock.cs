@@ -46,7 +46,6 @@ namespace WaterMod
             DebugWater.Log("Firing InvertPrevForces");
             if (Singleton.Manager<ManSpawn>.inst.IsTechSpawning)
                 return; // Do not invert on world load!
-            processing = true;
             try
             {
                 int firedCount = 0;
@@ -64,11 +63,9 @@ namespace WaterMod
             {
                 DebugWater.Log("Error on handling invert forces - " + e);
             }
-            processing = false;
         }
         public static void MassApplyForces()
         {
-            processing = true;
             try
             {
                 int firedCount = 0;
@@ -86,13 +83,13 @@ namespace WaterMod
             {
                 DebugWater.Log("Error on handling return forces");
             }
-            processing = false;
         }
 
 
         public TankBlock TankBlock;
         public WaterTank watertank;
         public BlockSpecial Special;
+        public Vector3 CenterOfBouySubmerged;
         public MonoBehaviour[] componentEffects;
         public List<ManWheels.Wheel> wheelTracker;
         public Vector3[] initVelocities;
@@ -105,8 +102,6 @@ namespace WaterMod
 
         internal static float cachedFloatVal = WaterGlobals.Density * 5f;
 
-        private static bool processing = false;
-
         internal static WaterBlock Insure(TankBlock block)
         {
             WaterBlock WB = block.GetComponent<WaterBlock>();
@@ -116,6 +111,14 @@ namespace WaterMod
             WB.TankBlock = block;
             block.AttachedEvent.Subscribe(WB.OnAttach);
             block.DetachingEvent.Subscribe(WB.OnDetach);
+            if (block.filledCells != null)
+            {
+                foreach (var item in block.filledCells)
+                {
+                    WB.CenterOfBouySubmerged += item;
+                }
+                WB.CenterOfBouySubmerged = WB.CenterOfBouySubmerged / block.filledCells.Length;
+            }
             switch (block.BlockCategory)
             {
                 case BlockCategories.Wheels:
@@ -238,15 +241,7 @@ namespace WaterMod
                 }
                 else
                 {
-                    if (particles == null || !particles.Using)
-                        particles = SurfacePool.GetFromPool(radius);
-
-                    if (particles == null)
-                        return;
-                    particles.enabled = true;
-                    Vector3 e = TankBlock.centreOfMassWorld;
-                    particles.UpdatePos(e.SetY(ManWater.HeightCalc));
-                    surfaceExist = true;
+                    InsureSurface();
                 }
             }
             if (Special == BlockSpecial.Wheels)
@@ -258,16 +253,7 @@ namespace WaterMod
             {
                 if (ManWater.CameraSubmerged)
                 {
-                    if (particles == null || !particles.Using)
-                        particles = SurfacePool.GetFromPool(radius);
-
-                    if (particles == null)
-                        return;
-                    particles.enabled = true;
-                    var e = TankBlock.centreOfMassWorld + (UnityEngine.Random.insideUnitSphere * radius);
-                    particles.UpdatePos(e);
-                    surfaceExist = true;
-                    particles.SetRate(Special == BlockSpecial.Props ? 3 : 1);
+                    InsureSurface();
                 }
                 else
                 {
@@ -276,10 +262,39 @@ namespace WaterMod
             }
         }
 
+        private void UpdateSurfaceParticlePositions()
+        {
+            if (particles != null)
+            {
+                if (ManWater.CameraSubmerged)
+                {
+                    particles.SetRate(Special == BlockSpecial.Props ? 3 : 1);
+                    particles.UpdatePos(TankBlock.centreOfMassWorld + (UnityEngine.Random.insideUnitSphere * radius));
+                }
+                else
+                    particles.UpdatePos(TankBlock.centreOfMassWorld.SetY(ManWater.HeightCalc));
+                if (!particles.Using)
+                    particles.Setup();
+            }
+        }
+
+        public void InsureSurface()
+        {
+            if (Sleep <= 16 && particles == null)
+            {
+                particles = SurfacePool.GetFromPool(radius);
+                if (particles != null)
+                {
+                    surfaceExist = true;
+                    ManWater.WaterLateUpdate.Subscribe(UpdateSurfaceParticlePositions);
+                }
+            }
+        }
         public void TryRemoveSurface(bool immedeate = false)
         {
             if (surfaceExist && particles != null)
             {
+                ManWater.WaterLateUpdate.Unsubscribe(UpdateSurfaceParticlePositions);
                 SurfacePool.ReturnToPool(particles, immedeate);
                 particles = null;
                 surfaceExist = false;
@@ -490,11 +505,14 @@ namespace WaterMod
             if (!QPatch.EnableLooseBlocksFloat)
                 return;
             Vector3 velo = TankBlock.rbody.velocity;
-            if (centerOfMass.y - ManWater.HeightCalc > ManWater.minimumBlockSleepHeight && velo.Approximately(Vector3.zero, 0.25f))
+            if (centerOfMass.y - ManWater.HeightCalc > ManWater.minBlockSleepHeight && velo.Approximately(Vector3.zero, 0.25f))
             {
                 Sleep++;
                 if (Sleep > 16)
+                {
                     TankBlock.rbody.Sleep();
+                    TryRemoveSurface();
+                }
             }
             else
                 Sleep = 0;
@@ -531,25 +549,11 @@ namespace WaterMod
 
         public void ApplyConnectedForceFullySubmerged()
         {
-            IntVector3[] intVector = TankBlock.filledCells;
-            int CellCount = intVector.Length;
+            float bouy = TankBlock.filledCells.Length;
             if (Special >= BlockSpecial.Hollow)
-            {
-                float bouy = watertank.FloationMode ? ManWater.BasicBlockFloatAssistMulti : 1;
-                for (int CellIndex = 0; CellIndex < CellCount; CellIndex++)
-                {
-                    watertank.AddScaledBuoyancy(transform.TransformPoint(intVector[CellIndex]), bouy);
-                    //TryRemoveSurface(invert);
-                }
-            }
-            else
-            {
-                for (int CellIndex = 0; CellIndex < CellCount; CellIndex++)
-                {
-                    watertank.AddGeneralBuoyancy(transform.TransformPoint(intVector[CellIndex]));
-                    //TryRemoveSurface(invert);
-                }
-            }
+                bouy *= watertank.FloationMode ? ManWater.BasicBlockFloatAssistMulti : 1f;
+            watertank.AddScaledBuoyancy(transform.TransformPoint(CenterOfBouySubmerged), bouy);
+            SubmergeUpdate();
             switch (Special)
             {
                 case BlockSpecial.None:
@@ -589,13 +593,9 @@ namespace WaterMod
                     if (Submerge > 1.5f)
                     {
                         if (Special >= BlockSpecial.Hollow)
-                        {
                             watertank.AddScaledBuoyancy(vector, bouy);
-                        }
                         else
-                        {
                             watertank.AddGeneralBuoyancy(vector);
-                        }
                         //TryRemoveSurface(invert);
                         subCount++;
                     }

@@ -96,6 +96,13 @@ namespace WaterMod
             */
             //HelperGUI.Init();
 
+            try
+            {
+                LegModExt.InsurePatches();
+            }
+            catch { DebugWater.Log("Water Mod: Error on init hooks, was confighelper or NativeOptions absent?"); }
+
+
             ManWater.Initiate();
             RemoveScenery.Initiate();
             LavaMode.Initiate();
@@ -105,14 +112,14 @@ namespace WaterMod
                 SafeInit.InitHooks();
             }
             catch { DebugWater.Log("Water Mod: Error on init hooks, was confighelper or NativeOptions absent?"); }
-            TerrainOperations.BeachingMode = OceanMan2;
 
             ManWater.UpdateHeightCalc();
             ManWater.UpdateLook();
             SurfacePool.UpdateAllActiveParticles();
 
             if (OceanMan2)
-                WorldTerraformer.InsurePreInit();
+                ManWorldGeneratorExt.InsurePreInit();
+            //TerrainOperations.BeachingMode = OceanMan2;
         }
     }
 
@@ -169,6 +176,7 @@ namespace WaterMod
             thisMod.BindConfig<ManWater>(null, "WaterSound");
             thisMod.BindConfig<ManWater>(null, "AlwaysShowTrails");
             thisMod.BindConfig<ManWater>(null, "height");
+            thisMod.BindConfig<ManWater>(null, "heightOcean");
             thisMod.BindConfig<ManWater>(null, "Density");
             thisMod.BindConfig<ManWater>(null, "UseStandards");
             thisMod.BindConfig<ManWater>(null, "FanJetMultiplier");
@@ -215,13 +223,18 @@ namespace WaterMod
                 {
                     bool RELOAD = QPatch.OceanMan2 != oceanMan.SavedValue;
                     QPatch.OceanMan2 = oceanMan.SavedValue;
-                    if (RELOAD)
+                    if (RELOAD && ManNetwork.IsHost)
                     {
+                        //TerrainOperations.BeachingMode = QPatch.OceanMan2;
                         if (QPatch.OceanMan2)
-                            WorldTerraformer.InsurePreInit();
+                        {
+                            ManWorldGeneratorExt.InsurePreInit();
+                        }
+
+                        ManWorldTileExt.RushTileLoading();
                         foreach (var item in ManWorld.inst.TileManager.IterateTiles())
                         {
-                            ManWorldTileExt.ReloadTile(item.Coord);
+                            ManWorldTileExt.HostReloadTile(item.Coord, false);
                         }
                     }
                 }

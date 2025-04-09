@@ -5,12 +5,12 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using HarmonyLib;
+using UnityEngine;
 
 namespace WaterMod
 {
     internal class MainPatches
     {// The NEW crash handler with useful mod-crash-related information
-
 
         internal static class ModuleLightPatches
         {

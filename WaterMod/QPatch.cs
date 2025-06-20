@@ -234,7 +234,7 @@ namespace WaterMod
                         ManWorldTileExt.RushTileLoading();
                         foreach (var item in ManWorld.inst.TileManager.IterateTiles())
                         {
-                            ManWorldTileExt.HostReloadTile(item.Coord, false);
+                            ManWorldTileExt.HostOnly_ReloadTile(item.Coord, false);
                         }
                     }
                 }

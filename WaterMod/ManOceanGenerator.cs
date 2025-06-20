@@ -40,7 +40,7 @@ namespace WaterMod
             if (GUILayout.Button("RESET TERRAIN"))
             {
                 ManOceanGenerator.ResetBiomeTrotter();
-                ManWorldTileExt.HostReloadENTIREScene(true);
+                ManWorldTileExt.HostOnly_ReloadENTIREScene(true);
             }
 
             GUI.DragWindow();

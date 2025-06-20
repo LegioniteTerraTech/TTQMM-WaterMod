@@ -89,7 +89,7 @@ namespace WaterMod
             WO.initialDrag = Globals.inst.airSpeedDrag;
             WO.DisableCollideWithWater();
             vis.visible.RecycledEvent.Subscribe(WO.OnRecycled);
-            DebugWater.Assert("Tracking chunk");
+            //DebugWater.Assert("Tracking chunk");
             chunks.Add(WO);
             return WO;
         }

@@ -20,6 +20,11 @@ namespace WaterMod
         private bool TouchWaterPrev = false;
         internal bool FloationMode = true;
 
+        public Vector3 AppliedForceCenter = Vector3.zero;
+        public Vector3 AppliedForceCenterThisFrame = Vector3.zero;
+        public Vector3 AppliedForceDirection = Vector3.zero;
+        public Vector3 AppliedForceDirectionThisFrame = Vector3.zero;
+
         public HashSet<ModuleLight> OnSplashdown = new HashSet<ModuleLight>();
 
         public static WaterTank Insure(Tank tank)
@@ -118,7 +123,7 @@ namespace WaterMod
             {
                 if (SplashSmall != null)
                 {
-                    SplashSmall.Volume = Mathf.Clamp01(Mathf.Abs(speedVol));
+                    SplashSmall.Volume = 0.5f * Mathf.Clamp01(Mathf.Abs(speedVol));
                     SplashSmall.Play();
                 }
             }
@@ -126,7 +131,7 @@ namespace WaterMod
             {
                 if (SplashMedium != null)
                 {
-                    SplashMedium.Volume = Mathf.Clamp01(Mathf.Abs(speedVol));
+                    SplashMedium.Volume = 0.4f * Mathf.Clamp01(Mathf.Abs(speedVol));
                     SplashMedium.Play();
                 }
             }
@@ -134,7 +139,7 @@ namespace WaterMod
             {
                 if (SplashLarge != null)
                 {
-                    SplashLarge.Volume = Mathf.Clamp01(Mathf.Abs(speedVol));
+                    SplashLarge.Volume = 0.5f * Mathf.Clamp01(Mathf.Abs(speedVol));
                     SplashLarge.Play();
                 }
             }
@@ -199,11 +204,15 @@ namespace WaterMod
         private static MethodInfo lightCheck = typeof(ModuleLight).GetMethod("RefreshLightsActive", BindingFlags.Instance | BindingFlags.NonPublic);
         public void RemoteFixedUpdate()
         {
+            AppliedForceCenterThisFrame = Vector3.zero;
+            AppliedForceDirectionThisFrame = Vector3.zero;
             if (ManWater.WorldMove || tank.rbody == null || (tank.Anchors.NumAnchored > tank.Anchors.NumSkyAnchored))
                 return; // the world is treadmilling and we must ignore the delayed physics update to prevent fling
             // or we are static anchored and physics should not be applied to us
             foreach (var ite in tank.blockman.IterateBlocks())
             {
+                if (ite == null)
+                    continue;
                 try
                 {
                     WaterBlock item = WaterBlock.Insure(ite);
@@ -241,6 +250,8 @@ namespace WaterMod
             {
                 Vector3 ForceCenter = SubmergeAdditivePos / SubmergeAmount;
                 Vector3 ForceLift = Vector3.up * (WaterGlobals.Density * 7.5f) * SubmergeAmount;
+                AppliedForceCenterThisFrame = ForceCenter;
+                AppliedForceDirectionThisFrame = ForceLift;
                 tank.rbody.AddForceAtPosition(ForceLift, ForceCenter);
                 SubmergeAdditivePos = Vector3.zero;
                 /*
@@ -336,6 +347,19 @@ namespace WaterMod
                     force = projection * forceAligned;
                 }
                 */
+
+                float surfMag = force.magnitude;
+                float subMag = AppliedForceDirectionThisFrame.magnitude;
+                float combined = surfMag + subMag;
+                if (combined != 0)
+                {
+                    float surfWeight = surfMag / combined;
+                    float subWeight = subMag / combined;
+                    AppliedForceCenterThisFrame = (AppliedForceCenterThisFrame * subWeight) +
+                        (forceOrigin * surfWeight);
+                    AppliedForceDirectionThisFrame = (AppliedForceDirectionThisFrame * subWeight) +
+                        (force * surfWeight);
+                }
                 tank.rbody.AddForceAtPosition(force, forceOrigin);
 
 
@@ -358,6 +382,7 @@ namespace WaterMod
                 }
                 SurfaceCountPrev = 0;
             }
+            AppliedForceCenterThisFrame = tank.transform.InverseTransformPoint(AppliedForceCenterThisFrame);
         }
 
         public static void UpdateAllReversed()

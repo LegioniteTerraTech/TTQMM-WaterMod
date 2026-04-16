@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using TerraTechETCUtil;
 using UnityEngine;
 
 namespace WaterMod
@@ -44,15 +45,7 @@ namespace WaterMod
             {
                 if (!QPatch.WantsLava)
                     QPatch.theWaterIsLava = false;
-                try
-                {
-                    if (ManNetwork.inst.IsMultiplayer() && ManNetwork.IsHost)
-                    {
-                        if (NetworkHandler.ServerLava != QPatch.theWaterIsLava)
-                            NetworkHandler.ServerLava = QPatch.theWaterIsLava;
-                    }
-                }
-                catch { }
+                ManWater.UpdateNetworkedWaterIfNeeded();
             }
         }
         public static void ScreamLava()
@@ -95,20 +88,12 @@ namespace WaterMod
                         }
                         catch { }
                     }
-                    if (GUILayout.Button("<color=#f23d3dff>All Must\nPerish</color>", TerraTechETCUtil.AltUI.ButtonRed))
+                    if (GUILayout.Button("<b>All Must\nPerish</b>", AltUI.ButtonRed))
                     {
                         Singleton.Manager<ManSFX>.inst.PlayUISFX(ManSFX.UISfxType.Enter);
                         ScreamLava();
                         QPatch.theWaterIsLava = true;
-                        try
-                        {
-                            if (ManNetwork.inst.IsMultiplayer() && ManNetwork.IsHost)
-                            {
-                                if (NetworkHandler.ServerLava != QPatch.theWaterIsLava)
-                                    NetworkHandler.ServerLava = QPatch.theWaterIsLava;
-                            }
-                        }
-                        catch { }
+                        ManWater.UpdateNetworkedWaterIfNeeded();
                         ManWater.UpdateLook();
                         SurfacePool.UpdateAllActiveParticles();
                         ManWater._inst.Save();

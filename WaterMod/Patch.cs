@@ -8,6 +8,8 @@ using Nuterra.NativeOptions;
 using System.IO;
 using TerraTechETCUtil;
 using UnityEngine.UI;
+using System.Collections.Generic;
+
 
 
 #if !STEAM
@@ -20,6 +22,62 @@ namespace WaterMod
 {
     internal class Patches
     {
+        private static Dictionary<Tank, ForceGizmo> CoBForceGizmos = new Dictionary<Tank, ForceGizmo>();
+        [HarmonyPatch(typeof(TankBeam), "SetForceGizmosActive")]
+        [HarmonyPriority(-400)]
+        private static class AddNewGizmoTank
+        {
+            internal static void Prefix(TankBeam __instance, bool state, Tank ___tank, bool ___m_ForceGizmosActive)
+            {
+                if (state != ___m_ForceGizmosActive)
+                {
+                    if (state)
+                    {
+                        if (!CoBForceGizmos.ContainsKey(___tank))
+                        {
+                            CoBForceGizmos.Add(___tank, ForceGizmo.SpawnForceGizmo(___tank.trans, 
+                                new Color(0.5f, 0.5f, 0.5f), true, 2f / (WaterGlobals.Density * 7.5f)));
+                            var waterTank = WaterTank.Insure(___tank);
+
+                            waterTank.AppliedForceCenter = waterTank.AppliedForceCenterThisFrame;
+                            waterTank.AppliedForceDirection = waterTank.AppliedForceDirectionThisFrame;
+                        }
+                    }
+                    else
+                    {
+                        if (CoBForceGizmos.TryGetValue(___tank, out var giz))
+                        {
+                            giz.Recycle();
+                            CoBForceGizmos.Remove(___tank);
+                        }
+                    }
+                }
+            }
+        }
+        [HarmonyPatch(typeof(TankBeam), "UpdateForceGizmos")]
+        [HarmonyPriority(-400)]
+        private static class AddNewGizmoTank2
+        {
+            internal static void Prefix(TankBeam __instance, Tank ___tank, bool ___m_ForceGizmosActive)
+            {
+                if (!___m_ForceGizmosActive)
+                    return;
+                if (CoBForceGizmos.TryGetValue(___tank, out var giz) && giz != null)
+                {
+                    var waterTank = WaterTank.Insure(___tank);
+
+                    waterTank.AppliedForceCenter = Vector3.Lerp(waterTank.AppliedForceCenter, 
+                        waterTank.AppliedForceCenterThisFrame, Time.deltaTime * 4f);
+                    waterTank.AppliedForceDirection = Vector3.Lerp(waterTank.AppliedForceDirection,
+                        waterTank.AppliedForceDirectionThisFrame, Time.deltaTime * 4f);
+                    giz.SetForceVector(waterTank.AppliedForceCenter, waterTank.AppliedForceDirection);
+                }
+            }
+        }
+
+
+
+
         [HarmonyPatch(typeof(Tank), "OnSpawn")]
         [HarmonyPriority(-69)]
         private static class AbsoluteAssertWaterTank
@@ -119,8 +177,8 @@ namespace WaterMod
             internal static void Postfix(TankBeam __instance)
             {
                 Vector3 pos = (Vector3)hBase.GetValue(__instance);
-                if (pos.y < ManWater.heightCalc)
-                    hBase.SetValue(__instance, pos.SetY(ManWater.heightCalc));
+                if (pos.y < ManWater.HeightCalc)
+                    hBase.SetValue(__instance, pos.SetY(ManWater.HeightCalc));
             }
         }
 
@@ -130,7 +188,8 @@ namespace WaterMod
         {
             internal static void Postfix(ref TankBlock __result)
             {
-                WaterBlock.Insure(__result);
+                if (__result != null)
+                    WaterBlock.Insure(__result);
             }
         }
         [HarmonyPatch(typeof(TankBlock))]
@@ -141,7 +200,8 @@ namespace WaterMod
             {
                 try
                 {
-                    WaterBlock.Insure(__instance).TryRemoveSurface();
+                    if (__instance != null)
+                        WaterBlock.Insure(__instance).TryRemoveSurface();
                 }
                 catch { }
             }

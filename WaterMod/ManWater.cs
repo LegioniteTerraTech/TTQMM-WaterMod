@@ -82,6 +82,10 @@ namespace WaterMod
         public static Texture2D WaterTex;
         public static Texture2D LavaTex;
 
+        /// <summary>
+        /// The PLAYER set height of the water height.
+        /// <para> Does not take action if we aren't the main host</para>
+        /// </summary>
         public static float Height
         {
             get
@@ -97,15 +101,20 @@ namespace WaterMod
             }
             set
             {
-                UpdateHeightCalc();
                 if (QPatch.OceanMan2)
                     heightOcean = value;
                 else
                     height = value;
+                if (UpdateHeightCalc())
+                    ApplyHeightCalc(heightCalc);
             }
         }
         public static float height = -25f;
         public static float heightOcean = -25f;
+        /// <summary>
+        /// The height that blocks shall be able to sleep at when their bounds is within some range of this given height. 
+        /// <para> Lazy updated!  The client determines the sleep height - for now...</para>
+        /// </summary>
         public static float minBlockSleepHeight = HeightCalc + BlockSleepHeightOffset;
         public static float BlockSleepHeightOffset = -8f;
 
@@ -192,14 +201,18 @@ namespace WaterMod
             get { return floodHeightMultiplier; }
             set
             {
-                UpdateHeightCalc();
                 floodHeightMultiplier = value;
+                if (UpdateHeightCalc())
+                    ApplyHeightCalc(heightCalc);
             }
         }
         public static float floodHeightMultiplier = 15f;
 
         public static int SelectedLook = 0;
 
+        /// <summary>
+        /// Updates in relation to the server host.  Server host's value is updated by <c>Height</c>
+        /// </summary>
         private static float NetHeightSmooth = 0f;
         private static Mesh WaterPlane;
         public static float waterAlpha = 0.725f;
@@ -210,7 +223,7 @@ namespace WaterMod
         public static float lavaAlpha = 0.95f;
 
 
-        private static void SetWaterHeight(float height)
+        private static void SetVisualWaterHeight(float height)
         {
             Vector3 pos = _inst.transform.position.SetY(height - 1024f);
             _inst.transform.position = pos;
@@ -272,6 +285,10 @@ namespace WaterMod
             try
             {
                 UpdateLook();
+                // Patch the odd bug where water doesn't appear on the title screen
+                //TerraTechETCUtil.AltUI.BlueStringHUD("yes");
+                if (ManGameMode.inst.GetCurrentGameType() == ManGameMode.GameType.Attract)
+                    InvokeHelper.Invoke(ResetAllTiles, 0.5f);
             }
             catch (Exception e)
             {
@@ -368,7 +385,13 @@ namespace WaterMod
             }
             ActiveWaterTiles.Clear();
         }
-        
+        private static void ResetAllTiles()
+        {
+            ClearAllTiles();
+            foreach (var item in ManWorld.inst.TileManager.IterateTiles(WorldTile.State.Created))
+                OnTileCreated(item);
+        }
+
 
         public static void CreateCameraFilters()
         {
@@ -846,16 +869,27 @@ namespace WaterMod
             catch { }
         }
 
+        /// <summary>
+        /// The final applied value of the water height before it is sent to other systems
+        /// </summary>
         public static float HeightCalc => heightCalcSet;
+        /// <summary>
+        /// The ACTUAL applied value of the water height based on the client's values
+        /// </summary>
         public static float heightCalcSet = -50;//-25;
+        /// <summary>
+        /// Our local client's water height value to be suggested to.
+        /// <para> Will deviate based on rainfall (<c>rainFlood</c>) and be overriden by the server host if we aren't the main host</para>
+        /// </summary>
         public static float heightCalc = -50;//-25;
 
         public static float RainFlood {
             get { return rainFlood; }
             set 
             {
-                UpdateHeightCalc();
                 rainFlood = value;
+                if (UpdateHeightCalc())
+                    ApplyHeightCalc(heightCalc);
             }
         }
 
@@ -903,25 +937,35 @@ namespace WaterMod
                     CancelInvoke("DelayedSave");
                     Height = height;
                     Invoke("DelayedSave", 1f);
+
+                    try
+                    {
+                        SafeInit.TrySetWaterHeightSlider(height);
+                    }
+                    catch { }
                 }
 
-                try
-                {
-                    if (ManNetwork.inst.IsMultiplayer() && ManNetwork.IsHost)
-                    {
-                        if (NetworkHandler.ServerWaterHeight != Height)
-                        {
-                            NetworkHandler.ServerWaterHeight = Height;
-                            //ManNetwork.inst.SendToAllClients(WaterChange, new WaterChangeMessage() { Height = ServerWaterHeight }, ManNetwork.inst.MyPlayer.netId);
-                            //Console.WriteLine("Sent new water height, changed to " + ServerWaterHeight.ToString());
-                        }
-                        if (NetworkHandler.ServerLava != QPatch.theWaterIsLava)
-                            NetworkHandler.ServerLava = QPatch.theWaterIsLava;
-                    }
-                }
-                catch { }
                 GUI.DragWindow();
             }
+        }
+
+        public static void UpdateNetworkedWaterIfNeeded()
+        {
+            try
+            {
+                if (ManNetwork.inst.IsMultiplayer() && ManNetwork.IsHost)
+                {
+                    if (NetworkHandler.ServerWaterHeight != Height)
+                    {
+                        NetworkHandler.ServerWaterHeight = Height;
+                        //ManNetwork.inst.SendToAllClients(WaterChange, new WaterChangeMessage() { Height = ServerWaterHeight }, ManNetwork.inst.MyPlayer.netId);
+                        //Console.WriteLine("Sent new water height, changed to " + ServerWaterHeight.ToString());
+                    }
+                    if (NetworkHandler.ServerLava != QPatch.theWaterIsLava)
+                        NetworkHandler.ServerLava = QPatch.theWaterIsLava;
+                }
+            }
+            catch { }
         }
 
         public static bool IsActive = true;
@@ -930,7 +974,8 @@ namespace WaterMod
         {
             _inst.gameObject.SetActive(IsActive);
             UpdateAllTiles();
-            UpdateHeightCalc();
+            if (UpdateHeightCalc())
+                ApplyHeightCalc(heightCalc);
             if (!IsActive)
                 ManTimeOfDayExt.RemoveState("WM");
         }
@@ -939,20 +984,68 @@ namespace WaterMod
 
         internal bool Heart = false;
 
-        internal static void UpdateHeightCalc()
+        /// <summary>
+        /// Must be called each time AFTER the water height is altered!
+        /// Submit using ApplyHeightCalc()
+        /// </summary>
+        internal static bool UpdateHeightCalc()
         {
-            if (IsActive)
-            {
-                heightCalc = Height + (rainFlood * floodHeightMultiplier);
-                minBlockSleepHeight = Height + BlockSleepHeightOffset;
+            bool delta = false;
+            float heightCalcNew;
+            if (ManGameMode.inst.IsCurrentModeMultiplayer())
+            {   // Follow the server, and ignore most local settings (unless we are the host)
+                UpdateNetworkedWaterIfNeeded();
+                if (ManGameMode.inst.IsCurrent<ModeDeathmatch>())
+                {   // Disable water for Deathmatch.  There is no aquatic deathmatch -yet-
+                    heightCalcNew = -1000f;
+                    if (!heightCalcNew.Approximately(heightCalc, 0.1f))
+                    {
+                        heightCalc = heightCalcNew;
+                        delta = true;
+                    }
+                }
+                else
+                {   // Copy water height from the host's values in MP
+                    heightCalcNew = NetHeightSmooth;
+                    if (!heightCalcNew.Approximately(heightCalc, 0.1f))
+                    {
+                        heightCalc = heightCalcNew;
+                        delta = true;
+                    }
+                }
             }
             else
-            {
-                heightCalc = -1024f;
-                minBlockSleepHeight = -1024f;
-                heightCalcSet = -1024f;
+            {   // Update to local client water height
+                if (IsActive)
+                {   // Calculate the water and submit it
+                    heightCalcNew = Height + (rainFlood * floodHeightMultiplier);
+                    if (!heightCalcNew.Approximately(heightCalc, 0.1f))
+                    {
+                        heightCalc = heightCalcNew;
+                        delta = true;
+                    }
+                }
+                else
+                {   // Turn off the water and move it super far away
+                    heightCalcNew = -1024f;
+                    if (!heightCalcNew.Approximately(heightCalc, 0.1f))
+                    {
+                        heightCalc = heightCalcNew;
+                        delta = true;
+                    }
+                }
             }
-            SetWaterHeight(heightCalc);
+            return delta;
+        }
+        internal static void ApplyHeightCalc(float value)
+        {
+            heightCalcSet = value;
+            UpdateBlockSleepAndVisualHeights();
+        }
+        internal static void UpdateBlockSleepAndVisualHeights()
+        {
+            minBlockSleepHeight = Height + BlockSleepHeightOffset;
+            SetVisualWaterHeight(HeightCalc);
         }
 
         public void OnTriggerStay(Collider collider)
@@ -1218,24 +1311,12 @@ namespace WaterMod
                 return;
             }
             blockSFXCount = 0;
-            if (ManGameMode.inst.IsCurrentModeMultiplayer())
+
+            if (UpdateHeightCalc())
             {
-                if (!ManGameMode.inst.IsCurrent<ModeDeathmatch>())
-                {
-                    heightCalcSet = NetHeightSmooth;
-                }
-                else
-                {
-                    heightCalcSet = -1000f;
-                }
+                ApplyHeightCalc(heightCalc);
             }
-            else
-            {
-                heightCalcSet = heightCalc;
-            }
-            float heightCalcDiff = height + (rainFlood * floodHeightMultiplier);
-            if (!heightCalcDiff.Approximately(heightCalcDiff, 0.1f))
-                UpdateHeightCalc();
+
             WaterParticleHandler.MaintainBubbles();
             try
             {
@@ -1262,15 +1343,15 @@ namespace WaterMod
 
 
                 ManNetwork mp = ManNetwork.inst;
-                bool flag = false;
+                bool weAreClient = false;
                 if (mp != null && mp.IsMultiplayer())
                 {
-                    flag = true;
+                    weAreClient = true;
                 }
 
                 if (Input.GetKeyDown(QPatch.key) && !Input.GetKey(KeyCode.LeftShift))
                 {
-                    if (flag)
+                    if (weAreClient)
                     {
                         try
                         {
@@ -1308,12 +1389,12 @@ namespace WaterMod
                     }
 
                 }
-                if (flag && !ManGameMode.inst.IsCurrent<ModeDeathmatch>())
-                {
+                if (weAreClient && !ManGameMode.inst.IsCurrent<ModeDeathmatch>())
+                {   // Smooth lerp client to our target water height
                     NetHeightSmooth = NetHeightSmooth * 0.9f + NetworkHandler.ServerWaterHeight * 0.1f;
                 }
                 PhysicsZone.transform.position = new Vector3(Singleton.camera.transform.position.x, HeightCalc, Singleton.camera.transform.position.z);
-                if (_WeatherMod && !flag)
+                if (_WeatherMod && !weAreClient)
                 {
                     float dTime = Time.deltaTime;
                     float newHeight = RainFlood;

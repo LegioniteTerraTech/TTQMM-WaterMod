@@ -25,38 +25,54 @@ namespace WaterMod
         }
         public static void Sub()
         { 
-            //Singleton.Manager<ManWorld>.inst.TileManager.TilePopulatedEvent.Subscribe(RemoveTrees);
+            Singleton.Manager<ManWorld>.inst.TileManager.TilePopulatedEvent.Subscribe(RemoveTrees);
         }
 
-        public static void RemoveTrees(WorldTile tile)
+        private static List<ResourceDispenser> toRemove = new List<ResourceDispenser>();
+        private static void RemoveTrees(WorldTile tile)
         {   // 
             //int removed = 0;
-            if (QPatch.DestroyTreesInWater && (ManNetwork.IsHost || !ManNetwork.IsNetworked) && tile.HasReachedLoadState(WorldTile.State.Populated))
+            try
             {
-                foreach (var pair in tile.Visibles[3])
+                if (QPatch.DestroyTreesInWater && (ManNetwork.IsHost || !ManNetwork.IsNetworked) &&
+                    tile?.Visibles != null && tile.HasReachedLoadState(WorldTile.State.Populated))
                 {
-                    Visible vis = pair.Value;
-                    try
+                    foreach (var pair in tile.Visibles[3])
                     {
-                        if (vis.resdisp.IsNotNull() && vis.centrePosition.y < QPatch.WaterHeight)
+                        Visible vis = pair.Value;
+                        try
                         {
-                            switch (vis.resdisp.GetSceneryType())
-                            {   // lets see here, we remove trees that which exists
-                                case SceneryTypes.ConeTree:
-                                case SceneryTypes.DesertTree:
-                                case SceneryTypes.MountainTree:
-                                case SceneryTypes.ShroomTree:
-                                case SceneryTypes.DeadTree:
-                                    vis.resdisp.RemoveFromWorld(false, PermRemove, true, true);
-                                    clock = 0;
-                                    //removed++;
-                                    break;
+                            if (vis?.resdisp != null && vis.centrePosition.y < QPatch.WaterHeight)
+                            {
+                                switch (vis.resdisp.GetSceneryType())
+                                {   // lets see here, we remove trees that which exists
+                                    case SceneryTypes.ConeTree:
+                                    case SceneryTypes.DesertTree:
+                                    case SceneryTypes.MountainTree:
+                                    case SceneryTypes.ShroomTree:
+                                    case SceneryTypes.DeadTree:
+                                        toRemove.Add(vis.resdisp);
+                                        //removed++;
+                                        break;
+                                }
                             }
                         }
+                        catch { }
+                    }
+                    //Debug.Log("Water Mod: removed " + removed + " trees from under water");
+                }
+                foreach (var resdisp in toRemove)
+                {
+                    try
+                    {
+                        resdisp?.RemoveFromWorld(false, PermRemove, true, true);
                     }
                     catch { }
                 }
-                //Debug.Log("Water Mod: removed " + removed + " trees from under water");
+            }
+            finally
+            {
+                toRemove.Clear();
             }
         }
 

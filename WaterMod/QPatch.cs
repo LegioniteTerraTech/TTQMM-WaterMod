@@ -5,6 +5,8 @@ using UnityEngine;
 using Nuterra.NativeOptions;
 using System.IO;
 using TerraTechETCUtil;
+using static LocalisationEnums;
+
 
 #if !STEAM
 using ModHelper.Config;
@@ -113,13 +115,64 @@ namespace WaterMod
             }
             catch { DebugWater.Log("Water Mod: Error on init hooks, was confighelper or NativeOptions absent?"); }
 
-            ManWater.UpdateHeightCalc();
+            if (ManWater.UpdateHeightCalc())
+                ManWater.ApplyHeightCalc(ManWater.heightCalc);
             ManWater.UpdateLook();
             SurfacePool.UpdateAllActiveParticles();
 
             if (OceanMan2)
                 ManWorldGeneratorExt.InsurePreInit();
             //TerrainOperations.BeachingMode = OceanMan2;
+
+            WikiPageBlock.AdditionalDisplayOnUI.Subscribe(BlockBouyWikiUI);
+        }
+
+        private static bool ShowWaterStats = false;
+        private static void BlockBouyWikiUI(BlockTypes blockT)
+        {
+            TankBlock block = ManSpawn.inst.GetBlockPrefab(blockT);
+            if (block != null)
+            {
+                float buoyforce = WaterBlock.GetMaxBuoyancyForce(block);
+
+                GUILayout.BeginVertical(AltUI.BoxBlack);
+                if (GUILayout.Button("Water", ShowWaterStats ? AltUI.LabelBlueTitle : AltUI.LabelWhiteTitle))
+                    ShowWaterStats = !ShowWaterStats;
+
+                if (ShowWaterStats)
+                {
+                    GUILayout.BeginHorizontal(AltUI.TextfieldBlackSearch);
+                    GUILayout.Label("General Buoyancy: ", AltUI.LabelWhite);
+                    GUILayout.FlexibleSpace();
+                    GUILayout.Label((string)AutoDataExtractor.DisplayNewtons(buoyforce), AltUI.LabelGold);
+                    GUILayout.EndHorizontal();
+
+                    float floatationForce = buoyforce - (block.m_DefaultMass * Physics.gravity.magnitude);
+                    GUILayout.BeginHorizontal(AltUI.TextfieldBlackSearch);
+                    GUILayout.Label("Floatation Force: ", AltUI.LabelWhite);
+                    GUILayout.FlexibleSpace();
+                    if (floatationForce == 0)
+                        GUILayout.Label((string)AutoDataExtractor.DisplayNewtons(floatationForce), AltUI.LabelWhite);
+                    else if (floatationForce > 0)
+                        GUILayout.Label(AltUI.FriendlyString((string)AutoDataExtractor.DisplayNewtons(floatationForce)), AltUI.LabelWhite);
+                    else
+                        GUILayout.Label(AltUI.EnemyString((string)AutoDataExtractor.DisplayNewtons(floatationForce)), AltUI.LabelWhite);
+                    GUILayout.EndHorizontal();
+
+                    float floatation = buoyforce / (block.m_DefaultMass * Physics.gravity.magnitude);
+                    GUILayout.BeginHorizontal(AltUI.TextfieldBlackSearch);
+                    GUILayout.Label("Float vs Mass Factor: ", AltUI.LabelWhite);
+                    GUILayout.FlexibleSpace();
+                    if (floatation == 1f)
+                        GUILayout.Label(floatation.ToString("P"), AltUI.LabelWhite);
+                    else if (floatation > 1f)
+                        GUILayout.Label(AltUI.FriendlyString(floatation.ToString("P")), AltUI.LabelWhite);
+                    else
+                        GUILayout.Label(AltUI.EnemyString(floatation.ToString("P")), AltUI.LabelWhite);
+                    GUILayout.EndHorizontal();
+                }
+                GUILayout.EndVertical();
+            }
         }
     }
 
@@ -161,6 +214,15 @@ namespace WaterMod
 
         public static OptionToggle Reset;
         private static ModConfig thisMod;
+         
+        internal static void TrySetWaterHeightSlider(float value)
+        {
+            try
+            {
+                Height.Value = value;
+            }
+            catch { }
+        }
 
         public static void InitHooks()
         {
@@ -292,7 +354,7 @@ namespace WaterMod
 
             looseBlocksFloat = new OptionToggle("Loose Blocks and Chunks float", QPatch.ModName, QPatch.EnableLooseBlocksFloat);
             looseBlocksFloat.onValueSaved.AddListener(() => { QPatch.EnableLooseBlocksFloat = looseBlocksFloat.SavedValue; });
-            noTreesInWater = new OptionToggle("Destroy <b>[!FOREVER!]</b> Submerged Trees", QPatch.ModName, QPatch.DestroyTreesInWater);
+            noTreesInWater = new OptionToggle("Destroy <b>[!FOREVER!]</b> Submerged Trees (Single-player only)", QPatch.ModName, QPatch.DestroyTreesInWater);
             noTreesInWater.onValueSaved.AddListener(() => { QPatch.DestroyTreesInWater = noTreesInWater.SavedValue; });
             makeDeath = new OptionToggle("but it's lava", QPatch.ModName, QPatch.theWaterIsLava);
             makeDeath.onValueSaved.AddListener(() => { QPatch.WantsLava = makeDeath.SavedValue; LavaMode.ThrowLavaDeathWarning(); });
@@ -390,6 +452,7 @@ namespace WaterMod
                     else
                         ManWater.SetToCustom();
                     thisMod.WriteConfigJsonFile();
+                    ManWater.UpdateNetworkedWaterIfNeeded();
                 }
                 catch (Exception e)
                 {

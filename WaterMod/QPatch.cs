@@ -136,7 +136,8 @@ namespace WaterMod
                 float buoyforce = WaterBlock.GetMaxBuoyancyForce(block);
 
                 GUILayout.BeginVertical(AltUI.BoxBlack);
-                if (GUILayout.Button("Water", ShowWaterStats ? AltUI.LabelBlueTitle : AltUI.LabelWhiteTitle))
+                if (GUILayout.Button("Water", ShowWaterStats ? AltUI.LabelBlueTitle : AltUI.LabelWhiteTitleBlueHover,
+                    GUILayout.ExpandWidth(true)))
                     ShowWaterStats = !ShowWaterStats;
 
                 if (ShowWaterStats)
@@ -423,7 +424,7 @@ namespace WaterMod
             });
 
             var waterAbyssDepth = SuperNativeOptions.OptionRangeAutoDisplay("Abyss depth", WaterLook, ManWater.AbyssDepth
-                , uiReturnFunc: (float value) =>
+                , uiReturnFuncString: (float value) =>
                 {
                     return "-" + Mathf.RoundToInt(value) + "m";
                 });

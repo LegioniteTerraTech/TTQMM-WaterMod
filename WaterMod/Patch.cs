@@ -143,7 +143,7 @@ namespace WaterMod
             }
         }
 
-        /*
+        //*
         [HarmonyPatch(typeof(TerrainObject))]
         [HarmonyPatch("SpawnFromPrefab", new Type[] { typeof(WorldTile), typeof(Vector3), typeof(Quaternion),
         typeof(float), typeof(IntVector2)})]
@@ -152,7 +152,8 @@ namespace WaterMod
             internal static bool Prefix(TerrainObject __instance, ref WorldTile tile, ref Vector3 pos, 
                 ref Quaternion rot, ref float scale, ref IntVector2 cellCoord, ref Transform __result)
             {
-                if (QPatch.DestroyTreesInWater && pos.y < ManWater.height && OceanFormer.ObjectTypesWaterVariants.TryGetValue(__instance.name, out string newSpawn))
+                if (QPatch.DestroyTreesInWater && pos.y < ManWater.height && 
+                    ManOceanGenerator.ObjectTypesWaterVariants.TryGetValue(__instance.name, out string newSpawn))
                 {
                     try
                     {
@@ -168,7 +169,7 @@ namespace WaterMod
                 return true;
             }
         }
-        */
+        //*/
         [HarmonyPatch(typeof(TankBeam))]
         [HarmonyPatch("SetHoverBase")]
         private static class TankInsureBBeamUnderwater
@@ -278,7 +279,7 @@ namespace WaterMod
                 if (__instance.CurrentBiomeMap != null)
                 {
                     DebugWater.Log("Biomes reset");
-                    ManOceanGenerator.ready = false;
+                    ManOceanGenerator.oceanBiomesAllReady = false;
                 }
             }
         }
@@ -290,9 +291,9 @@ namespace WaterMod
             internal static void Prefix(BiomeMap __instance)
             {
                 if (QPatch.OceanMan2)
-                    ManOceanGenerator.AddOceanicBiomes(__instance);
+                    ManOceanGenerator.InitiateAndOrEnableOceanicBiomes(__instance);
                 else
-                    ManOceanGenerator.RemoveOceanicBiomes(__instance);
+                    ManOceanGenerator.DisableOceanicBiomes(__instance);
             }
         }
     }

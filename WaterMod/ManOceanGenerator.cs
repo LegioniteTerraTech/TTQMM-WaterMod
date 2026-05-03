@@ -562,7 +562,7 @@ Biome #21 - SmallCraters_Biome
                 }
 
                 if (Singleton.playerTank != null)
-                    UIHelpersExt.BigF5broningBanner("Rebuilding planet...", false);
+                    UIHelpersExt.BigF5broningBannerSP("Rebuilding planet...", false);
 
                 AddWaterScenery();
 
@@ -674,7 +674,7 @@ Biome #21 - SmallCraters_Biome
                 }
 
                 if (Singleton.playerTank != null)
-                    UIHelpersExt.BigF5broningBanner("Rebuilding planet...", false);
+                    UIHelpersExt.BigF5broningBannerSP("Rebuilding planet...", false);
 
                 if (ApplySeaToALL)
                     DisableSeaBiomeGroupAssignments(biomesGrouped);

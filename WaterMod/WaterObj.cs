@@ -31,7 +31,7 @@ namespace WaterMod
                 }
                 catch { }
             }
-            if (QPatch.EnableLooseBlocksFloat)
+            if (WaterGlobals.EnableLooseBlocksFloat)
             {
                 foreach (var item in chunks)
                 {

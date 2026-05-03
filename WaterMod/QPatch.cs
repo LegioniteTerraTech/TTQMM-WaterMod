@@ -2,16 +2,12 @@
 using System.Reflection;
 using HarmonyLib;
 using UnityEngine;
-using Nuterra.NativeOptions;
 using System.IO;
 using TerraTechETCUtil;
-using static LocalisationEnums;
 
 
 #if !STEAM
 using ModHelper.Config;
-#else
-using ModHelper;
 #endif
 
 namespace WaterMod
@@ -48,14 +44,28 @@ namespace WaterMod
         public static Material fancy;
 
         // Experimentals
-        public static bool SimulateProjectiles = true;
-        public static bool HeightBasedFloat = true;
         public static bool OnlyPlayerWaterTraverseSFX = false;
 
+        /// <summary> CLIENT SETTINGS </summary>
+        public static bool SimulateProjectiles = true;
+        /// <summary> CLIENT SETTINGS </summary>
         public static bool EnableLooseBlocksFloat = true;
+        /// <summary> CLIENT SETTINGS </summary>
         public static bool OceanMan2 = false;
+        /// <summary> CLIENT SETTINGS </summary>
         public static bool DestroyTreesInWater = false;
+        /// <summary> CLIENT SETTINGS </summary>
         internal static bool WantsLava = false;
+
+        public static void ApplyClientSettings()
+        {
+            WaterGlobals.SimulateProjectiles = SimulateProjectiles;
+            WaterGlobals.EnableLooseBlocksFloat = EnableLooseBlocksFloat;
+            WaterGlobals.OceanMan2 = OceanMan2;
+            WaterGlobals.DestroyTreesInWater = DestroyTreesInWater;
+            WaterGlobals.WantsLava = WantsLava;
+        }
+
         /// <summary>
         /// Only edit if absolutely nesseary! Use TheWaterIsLava instead
         /// </summary>
@@ -86,6 +96,16 @@ namespace WaterMod
         public static Harmony harmony;
         public static void Main()
         {
+            try
+            {
+                LegModExt.InsurePatches();
+            }
+            catch (Exception e)
+            {
+                DebugWater.Assert("Water Mod: Error on init hooks, LegModExt ENCOUNTERED INIT ERROR");
+                throw e;
+            }
+
             //ManTechBuilder.DebugIntersections = true;// SOO USEFUL
             harmony = new Harmony("aceba1.ttmm.revived.water");
             harmony.MassPatchAllWithin(typeof(MainPatches),"Water Mod + Lava", true);
@@ -98,22 +118,18 @@ namespace WaterMod
             */
             //HelperGUI.Init();
 
-            try
-            {
-                LegModExt.InsurePatches();
-            }
-            catch { DebugWater.Log("Water Mod: Error on init hooks, was confighelper or NativeOptions absent?"); }
-
-
             ManWater.Initiate();
             RemoveScenery.Initiate();
             LavaMode.Initiate();
 
             try
             {
-                SafeInit.InitHooks();
+                if (ModStatusChecker.IsConfigHelperPresent && ModStatusChecker.IsNativeOptionsPresent)
+                    InitSettingsCapsulated();
+                else
+                    DebugWater.Log("Water Mod: Could not init hooks for ConfigHelper or NativeOptions as both are not present");
             }
-            catch { DebugWater.Log("Water Mod: Error on init hooks, was confighelper or NativeOptions absent?"); }
+            catch { DebugWater.Assert("Water Mod: Error on init hooks, was confighelper or NativeOptions absent?"); }
 
             if (ManWater.UpdateHeightCalc())
                 ManWater.ApplyHeightCalc(ManWater.heightCalc);
@@ -125,6 +141,15 @@ namespace WaterMod
             //TerrainOperations.BeachingMode = OceanMan2;
 
             WikiPageBlock.AdditionalDisplayOnUI.Subscribe(BlockBouyWikiUI);
+        }
+
+        private static void InitSettingsCapsulated()
+        {
+            try
+            {
+                SafeInit.InitHooks();
+            }
+            catch { }
         }
 
         private static bool ShowWaterStats = false;
@@ -179,42 +204,42 @@ namespace WaterMod
 
     public class SafeInit
     {
-        public static ModConfig _thisMod;
+        public static ModHelper.ModConfig _thisMod;
 
 
-        public static OptionKey GUIMenu;
-        public static OptionToggle IsWaterActive;
-        public static OptionToggle UseParticleEffects;
-        public static OptionToggle TrailPriority;
-        public static OptionRange Height;
-        public static OptionRange Sound;
+        public static Nuterra.NativeOptions.OptionKey GUIMenu;
+        public static Nuterra.NativeOptions.OptionToggle IsWaterActive;
+        public static Nuterra.NativeOptions.OptionToggle UseParticleEffects;
+        public static Nuterra.NativeOptions.OptionToggle TrailPriority;
+        public static Nuterra.NativeOptions.OptionRange Height;
+        public static Nuterra.NativeOptions.OptionRange Sound;
 
-        public static OptionToggle EnableCustomSettings;
-        public static OptionToggle looseBlocksFloat;
-        public static OptionToggle oceanMan;
-        public static OptionToggle noTreesInWater;
-        public static OptionToggle makeDeath;
+        public static Nuterra.NativeOptions.OptionToggle EnableCustomSettings;
+        public static Nuterra.NativeOptions.OptionToggle looseBlocksFloat;
+        public static Nuterra.NativeOptions.OptionToggle oceanMan;
+        public static Nuterra.NativeOptions.OptionToggle noTreesInWater;
+        public static Nuterra.NativeOptions.OptionToggle makeDeath;
 
-        public static OptionRange Density;
-        public static OptionRange FanJetMultiplier;
-        public static OptionRange ResourceBuoyancy;
-        public static OptionRange BulletDampener;
-        public static OptionRange MissileDampener;
-        public static OptionRange LaserFraction;
-        public static OptionRange SurfaceSkinning;
-        public static OptionRange SubmergedTankDampening;
-        public static OptionRange SubmergedTankDampeningY;
-        public static OptionRange SurfaceTankDampening;
-        public static OptionRange SurfaceTankDampeningY;
-        public static OptionRange WheelForces;
+        public static Nuterra.NativeOptions.OptionRange Density;
+        public static Nuterra.NativeOptions.OptionRange FanJetMultiplier;
+        public static Nuterra.NativeOptions.OptionRange ResourceBuoyancy;
+        public static Nuterra.NativeOptions.OptionRange BulletDampener;
+        public static Nuterra.NativeOptions.OptionRange MissileDampener;
+        public static Nuterra.NativeOptions.OptionRange LaserFraction;
+        public static Nuterra.NativeOptions.OptionRange SurfaceSkinning;
+        public static Nuterra.NativeOptions.OptionRange SubmergedTankDampening;
+        public static Nuterra.NativeOptions.OptionRange SubmergedTankDampeningY;
+        public static Nuterra.NativeOptions.OptionRange SurfaceTankDampening;
+        public static Nuterra.NativeOptions.OptionRange SurfaceTankDampeningY;
+        public static Nuterra.NativeOptions.OptionRange WheelForces;
 
-        public static OptionRange RainWeightMultiplier;
-        public static OptionRange RainDrainMultiplier;
-        public static OptionRange FloodRateClamp;
-        public static OptionRange FloodHeightMultiplier;
+        public static Nuterra.NativeOptions.OptionRange RainWeightMultiplier;
+        public static Nuterra.NativeOptions.OptionRange RainDrainMultiplier;
+        public static Nuterra.NativeOptions.OptionRange FloodRateClamp;
+        public static Nuterra.NativeOptions.OptionRange FloodHeightMultiplier;
 
-        public static OptionToggle Reset;
-        private static ModConfig thisMod;
+        public static Nuterra.NativeOptions.OptionToggle Reset;
+        private static ModHelper.ModConfig thisMod;
          
         internal static void TrySetWaterHeightSlider(float value)
         {
@@ -227,7 +252,7 @@ namespace WaterMod
 
         public static void InitHooks()
         {
-            ModConfig thisConfig = new ModConfig();
+            ModHelper.ModConfig thisConfig = new ModHelper.ModConfig();
 
             thisConfig.BindConfig<WaterParticleHandler>(null, "UseParticleEffects");
 
@@ -273,23 +298,66 @@ namespace WaterMod
 
             _thisMod = thisMod;
 
-            OptionToggle togTest = new OptionToggle("Water Active", QPatch.ModName, ManWater.IsActive);
+            string menuNameGeneral = QPatch.ModName + " - General";
+            var waterLook = new Nuterra.NativeOptions.OptionList<ManWater.WaterLook>("Water quality", menuNameGeneral, ManWater.waterLooks, ManWater.SelectedLook);
+            waterLook.onValueSaved.AddListener(() =>
+            {
+                ManWater.SelectedLook = waterLook.SavedValue;
+                ManWater.UpdateLook();
+                SurfacePool.UpdateAllActiveParticles();
+            });
+
+            var waterAbyssDepth = SuperNativeOptions.OptionRangeAutoDisplay("Abyss depth", menuNameGeneral, ManWater.AbyssDepth
+                , uiReturnFuncString: (float value) =>
+                {
+                    return "-" + Mathf.RoundToInt(value) + "m";
+                });
+            waterAbyssDepth.onValueSaved.AddListener(() => {
+                ManWater.AbyssDepth = waterAbyssDepth.SavedValue;
+            });
+            GUIMenu = new Nuterra.NativeOptions.OptionKey("GUI Menu button", menuNameGeneral, QPatch.key);
+            GUIMenu.onValueSaved.AddListener(() => { QPatch.key_int = (int)(QPatch.key = GUIMenu.SavedValue); ManWater._inst.Invoke("Save", 0.5f); });
+
+            UseParticleEffects = new Nuterra.NativeOptions.OptionToggle("Particle effects Active", menuNameGeneral, WaterParticleHandler.UseParticleEffects);
+            UseParticleEffects.onValueSaved.AddListener(() => {
+                WaterParticleHandler.UseParticleEffects = UseParticleEffects.SavedValue;
+                if (!WaterParticleHandler.UseParticleEffects)
+                    WaterParticleHandler.ClearAllParticles();
+            });
+            TrailPriority = new Nuterra.NativeOptions.OptionToggle("Always Show Trails", menuNameGeneral, ManWater.AlwaysShowTrails);
+            TrailPriority.onValueSaved.AddListener(() => {
+                ManWater.AlwaysShowTrails = TrailPriority.SavedValue;
+                ManWater.SetShaders(ManWater.AlwaysShowTrails);
+            });
+            Sound = SuperNativeOptions.OptionRangeAutoDisplay("Water Traverse Loudness", menuNameGeneral, ManWater.WaterSound,
+                0f, 1f, 0.05f, (float value) =>
+                {
+                    return Mathf.RoundToInt(value * 100) + "%";
+                });
+            Sound.onValueSaved.AddListener(() => { ManWater.WaterSound = Sound.SavedValue; });
+
+
+
+            // --------------------------------------------------------------------------
+            string WaterProperties = QPatch.ModName + " - Host";
+            Nuterra.NativeOptions.OptionToggle togTest = new Nuterra.NativeOptions.OptionToggle("Water Active", WaterProperties, ManWater.IsActive);
             togTest.onValueSaved.AddListener(() => {
                 ManWater.IsActive = togTest.SavedValue;
                 ManWater.SetState();
             });
             IsWaterActive = togTest;
-            oceanMan = new OptionToggle("Ocean Mode [WIP - WILL BREAK YOUR GAME]", QPatch.ModName, QPatch.OceanMan2);
+            oceanMan = SuperNativeOptions.OptionToggleAutoDisplay("Ocean Mode", WaterProperties, QPatch.OceanMan2,
+                (bool state) => { return "LOCKS WATER HEIGHT TO " + ManWater.heightOcean + "]"; });
             oceanMan.onValueSaved.AddListener(() =>
             {
                 try
                 {
-                    bool RELOAD = QPatch.OceanMan2 != oceanMan.SavedValue;
-                    QPatch.OceanMan2 = oceanMan.SavedValue;
+                    bool RELOAD = WaterGlobals.OceanMan2 != oceanMan.SavedValue;
+                    WaterGlobals.OceanMan2 = oceanMan.SavedValue;
                     if (RELOAD && ManNetwork.IsHost)
                     {
                         //TerrainOperations.BeachingMode = QPatch.OceanMan2;
-                        if (QPatch.OceanMan2)
+                        if (WaterGlobals.OceanMan2)
                         {
                             ManWorldGeneratorExt.InsurePreInit();
                         }
@@ -307,151 +375,101 @@ namespace WaterMod
                 }
 
             });
-
-            EnableCustomSettings = new OptionToggle("Use Custom Settings", QPatch.ModName, !ManWater.UseStandards);
-            EnableCustomSettings.onValueSaved.AddListener(() => {
-                if (ManWater.UseStandards == EnableCustomSettings.SavedValue)
-                {
-                    ManWater.UseStandards = !EnableCustomSettings.SavedValue;
-                    if (ManWater.UseStandards)
-                    {
-                        thisMod.WriteConfigJsonFile();
-                        ManWater.SetToStandard();
-                    }
-                    else
-                    {
-                        thisMod.ReadConfigJsonFile();
-                    }
-                }
-            });
-            GUIMenu = new OptionKey("GUI Menu button", QPatch.ModName, QPatch.key);
-            GUIMenu.onValueSaved.AddListener(() => { QPatch.key_int = (int)(QPatch.key = GUIMenu.SavedValue); ManWater._inst.Invoke("Save", 0.5f); });
-
-            UseParticleEffects = new OptionToggle("Particle effects Active", QPatch.ModName, WaterParticleHandler.UseParticleEffects);
-            UseParticleEffects.onValueSaved.AddListener(() => {
-                WaterParticleHandler.UseParticleEffects = UseParticleEffects.SavedValue;
-                if (!WaterParticleHandler.UseParticleEffects)
-                    WaterParticleHandler.ClearAllParticles();
-            });
-            TrailPriority = new OptionToggle("Always Show Trails", QPatch.ModName, ManWater.AlwaysShowTrails);
-            TrailPriority.onValueSaved.AddListener(() => {
-                ManWater.AlwaysShowTrails = TrailPriority.SavedValue;
-                ManWater.SetShaders(ManWater.AlwaysShowTrails);
-            });
-
-            Height = SuperNativeOptions.OptionRangeAutoDisplay("Height level", QPatch.ModName, ManWater.Height, 
+            Height = SuperNativeOptions.OptionRangeAutoDisplay("Height level", WaterProperties, ManWater.Height, 
                 -75f, 100f, 1f, (float value) =>
                 {
                     return Mathf.RoundToInt(value) + "m";
                 });
             Height.onValueSaved.AddListener(() => { ManWater.Height = Height.SavedValue; });
 
-            Sound = SuperNativeOptions.OptionRangeAutoDisplay("Water Traverse Loudness", QPatch.ModName, ManWater.WaterSound,
-                0f, 1f, 0.05f, (float value) =>
-                {
-                    return Mathf.RoundToInt(value * 100) + "%";
-                });
-            Sound.onValueSaved.AddListener(() => { ManWater.WaterSound = Sound.SavedValue; });
-
-            looseBlocksFloat = new OptionToggle("Loose Blocks and Chunks float", QPatch.ModName, QPatch.EnableLooseBlocksFloat);
+            looseBlocksFloat = new Nuterra.NativeOptions.OptionToggle("Loose Blocks and Chunks float", WaterProperties, QPatch.EnableLooseBlocksFloat);
             looseBlocksFloat.onValueSaved.AddListener(() => { QPatch.EnableLooseBlocksFloat = looseBlocksFloat.SavedValue; });
-            noTreesInWater = new OptionToggle("Destroy <b>[!FOREVER!]</b> Submerged Trees (Single-player only)", QPatch.ModName, QPatch.DestroyTreesInWater);
+            makeDeath = new Nuterra.NativeOptions.OptionToggle("but it's lava", WaterProperties, QPatch.theWaterIsLava);
+            makeDeath.onValueSaved.AddListener(() => { 
+                QPatch.WantsLava = makeDeath.SavedValue; 
+                LavaMode.ThrowLavaDeathWarning(); 
+            });
+
+            EnableCustomSettings = new Nuterra.NativeOptions.OptionToggle("Use Custom Settings", WaterProperties, !ManWater.UseStandards);
+            EnableCustomSettings.onValueSaved.AddListener(() => {
+                if (ManWater.UseStandards == EnableCustomSettings.SavedValue)
+                {
+                    ManWater.UseStandards = !EnableCustomSettings.SavedValue;
+                    if (ManWater.UseStandards)
+                        thisMod.WriteConfigJsonFile();
+                    else
+                        thisMod.ReadConfigJsonFile();
+                }
+            });
+            noTreesInWater = new Nuterra.NativeOptions.OptionToggle("Destroy <b>[!FOREVER!]</b> Submerged Trees (Single-player only)", WaterProperties, QPatch.DestroyTreesInWater);
             noTreesInWater.onValueSaved.AddListener(() => { QPatch.DestroyTreesInWater = noTreesInWater.SavedValue; });
-            makeDeath = new OptionToggle("but it's lava", QPatch.ModName, QPatch.theWaterIsLava);
-            makeDeath.onValueSaved.AddListener(() => { QPatch.WantsLava = makeDeath.SavedValue; LavaMode.ThrowLavaDeathWarning(); });
-
-
-            var WaterProperties = QPatch.ModName + " - Single Player Settings";
-            Density = new OptionRange("Density", WaterProperties, ManWater.Density, -16, 16, 0.25f);
+            Density = new Nuterra.NativeOptions.OptionRange("Density", WaterProperties, ManWater.Density, -16, 16, 0.25f);
             Density.onValueSaved.AddListener(() => {
                 ManWater.Density = Density.SavedValue;
-                if (!ManWater.UseStandards)
-                    ManWater.SetToCustom();
-                WaterBlock.cachedFloatVal = WaterGlobals.Density * 5f;
             });
-            FanJetMultiplier = new OptionRange("Fan jet Multiplier", WaterProperties, ManWater.FanJetMultiplier, 0f, 4f, .05f);
+            FanJetMultiplier = new Nuterra.NativeOptions.OptionRange("Fan jet Multiplier", WaterProperties, ManWater.FanJetMultiplier, 0f, 4f, .05f);
             FanJetMultiplier.onValueSaved.AddListener(() => {
                 ManWater.FanJetMultiplier = FanJetMultiplier.SavedValue;
             });
-            ResourceBuoyancy = new OptionRange("Resource Buoyancy", WaterProperties, ManWater.ResourceBuoyancyMultiplier, 0f, 4f, .05f);
+            ResourceBuoyancy = new Nuterra.NativeOptions.OptionRange("Resource Buoyancy", WaterProperties, ManWater.ResourceBuoyancyMultiplier, 0f, 4f, .05f);
             ResourceBuoyancy.onValueSaved.AddListener(() => {
                 ManWater.ResourceBuoyancyMultiplier = ResourceBuoyancy.SavedValue;
             });
-            BulletDampener = new OptionRange("Bullet Dampening", WaterProperties, ManWater.BulletDampener, 0f, 1E-4f, 1E-8f);
+            BulletDampener = new Nuterra.NativeOptions.OptionRange("Bullet Dampening", WaterProperties, ManWater.BulletDampener, 0f, 1E-4f, 1E-8f);
             BulletDampener.onValueSaved.AddListener(() => {
                 ManWater.BulletDampener = BulletDampener.SavedValue;
             });
-            MissileDampener = new OptionRange("Missile Dampening", WaterProperties, ManWater.MissileDampener, 0f, 0.1f, 0.003f);
+            MissileDampener = new Nuterra.NativeOptions.OptionRange("Missile Dampening", WaterProperties, ManWater.MissileDampener, 0f, 0.1f, 0.003f);
             MissileDampener.onValueSaved.AddListener(() => {
                 ManWater.MissileDampener = MissileDampener.SavedValue;
             });
-            LaserFraction = new OptionRange("Laser Slowdown", WaterProperties, ManWater.LaserFraction, 0f, 0.5f, 0.025f);
+            LaserFraction = new Nuterra.NativeOptions.OptionRange("Laser Slowdown", WaterProperties, ManWater.LaserFraction, 0f, 0.5f, 0.025f);
             LaserFraction.onValueSaved.AddListener(() => {
                 ManWater.LaserFraction = LaserFraction.SavedValue;
             });
-            SurfaceSkinning = new OptionRange("Surface Skinning", WaterProperties, ManWater.SurfaceSkinning, -0.5f, 0.5f, 0.05f);
+            SurfaceSkinning = new Nuterra.NativeOptions.OptionRange("Surface Skinning", WaterProperties, ManWater.SurfaceSkinning, -0.5f, 0.5f, 0.05f);
             SurfaceSkinning.onValueSaved.AddListener(() => {
                 ManWater.SurfaceSkinning = SurfaceSkinning.SavedValue;
             });
-            SubmergedTankDampening = new OptionRange("Submerged Tank Dampening", WaterProperties, ManWater.SubmergedTankDampening, 0f, 2f, 0.05f);
+            SubmergedTankDampening = new Nuterra.NativeOptions.OptionRange("Submerged Tank Dampening", WaterProperties, ManWater.SubmergedTankDampening, 0f, 2f, 0.05f);
             SubmergedTankDampening.onValueSaved.AddListener(() => {
                 ManWater.SubmergedTankDampening = SubmergedTankDampening.SavedValue;
             });
-            SubmergedTankDampeningY = new OptionRange("Submerged Tank Dampening Y addition", WaterProperties, ManWater.SubmergedTankDampeningYAddition, -1f, 1f, 0.05f);
+            SubmergedTankDampeningY = new Nuterra.NativeOptions.OptionRange("Submerged Tank Dampening Y addition", WaterProperties, ManWater.SubmergedTankDampeningYAddition, -1f, 1f, 0.05f);
             SubmergedTankDampeningY.onValueSaved.AddListener(() => {
                 ManWater.SubmergedTankDampeningYAddition = SubmergedTankDampeningY.SavedValue;
             });
-            SurfaceTankDampening = new OptionRange("Surface Tank Dampening", WaterProperties, ManWater.SurfaceTankDampening, 0f, 2f, 0.05f);
+            SurfaceTankDampening = new Nuterra.NativeOptions.OptionRange("Surface Tank Dampening", WaterProperties, ManWater.SurfaceTankDampening, 0f, 2f, 0.05f);
             SurfaceTankDampening.onValueSaved.AddListener(() => {
                 ManWater.SurfaceTankDampening = SurfaceTankDampening.SavedValue;
             });
-            SurfaceTankDampeningY = new OptionRange("Surface Tank Dampening Y addition", WaterProperties, ManWater.SurfaceTankDampeningYAddition, -1f, 1f, 0.05f);
+            SurfaceTankDampeningY = new Nuterra.NativeOptions.OptionRange("Surface Tank Dampening Y addition", WaterProperties, ManWater.SurfaceTankDampeningYAddition, -1f, 1f, 0.05f);
             SurfaceTankDampeningY.onValueSaved.AddListener(() => {
                 ManWater.SurfaceTankDampeningYAddition = SurfaceTankDampeningY.SavedValue;
             });
-            WheelForces = new OptionRange("Surface Wheel Force Multiplier", WaterProperties, ManWater.WheelWaterForceMultiplier, 0, 4f, 0.05f);
+            WheelForces = new Nuterra.NativeOptions.OptionRange("Surface Wheel Force Multiplier", WaterProperties, ManWater.WheelWaterForceMultiplier, 0, 4f, 0.05f);
             WheelForces.onValueSaved.AddListener(() => {
                 ManWater.WheelWaterForceMultiplier = WheelForces.SavedValue;
             });
 
-            var WaterLook = QPatch.ModName + " - Water look";
-            var waterLook = new OptionList<ManWater.WaterLook>("Water look", WaterLook, ManWater.waterLooks, ManWater.SelectedLook);
-            waterLook.onValueSaved.AddListener(() =>
-            {
-                ManWater.SelectedLook = waterLook.SavedValue;
-                ManWater.UpdateLook();
-                SurfacePool.UpdateAllActiveParticles();
-            });
-
-            var waterAbyssDepth = SuperNativeOptions.OptionRangeAutoDisplay("Abyss depth", WaterLook, ManWater.AbyssDepth
-                , uiReturnFuncString: (float value) =>
-                {
-                    return "-" + Mathf.RoundToInt(value) + "m";
-                });
-            waterAbyssDepth.onValueSaved.AddListener(() => {
-                ManWater.AbyssDepth = waterAbyssDepth.SavedValue;
-            });
 
             if (ManWater._WeatherMod)
             {
                 var WeatherProperties = QPatch.ModName + " - Weather mod";
-                RainWeightMultiplier = new OptionRange("Rain Weight Multiplier", WeatherProperties, ManWater.RainWeightMultiplier, 0, 0.25f, 0.01f);
+                RainWeightMultiplier = new Nuterra.NativeOptions.OptionRange("Rain Weight Multiplier", WeatherProperties, ManWater.RainWeightMultiplier, 0, 0.25f, 0.01f);
                 RainWeightMultiplier.onValueSaved.AddListener(() => { ManWater.RainWeightMultiplier = RainWeightMultiplier.SavedValue; });
-                RainDrainMultiplier = new OptionRange("Rain Drain Multiplier", WeatherProperties, ManWater.RainDrainMultiplier, 0, 0.25f, 0.01f);
+                RainDrainMultiplier = new Nuterra.NativeOptions.OptionRange("Rain Drain Multiplier", WeatherProperties, ManWater.RainDrainMultiplier, 0, 0.25f, 0.01f);
                 RainDrainMultiplier.onValueSaved.AddListener(() => { ManWater.RainDrainMultiplier = RainDrainMultiplier.SavedValue; });
-                FloodRateClamp = new OptionRange("Flood rate Clamp", WeatherProperties, ManWater.FloodChangeClamp, 0, 0.08f, 0.001f);
+                FloodRateClamp = new Nuterra.NativeOptions.OptionRange("Flood rate Clamp", WeatherProperties, ManWater.FloodChangeClamp, 0, 0.08f, 0.001f);
                 FloodRateClamp.onValueSaved.AddListener(() => { ManWater.FloodChangeClamp = FloodRateClamp.SavedValue; });
-                FloodHeightMultiplier = new OptionRange("Flood Height Multiplier", WeatherProperties, ManWater.FloodHeightMultiplier, 0, 50f, 1f);
+                FloodHeightMultiplier = new Nuterra.NativeOptions.OptionRange("Flood Height Multiplier", WeatherProperties, ManWater.FloodHeightMultiplier, 0, 50f, 1f);
                 FloodHeightMultiplier.onValueSaved.AddListener(() => { ManWater.FloodHeightMultiplier = FloodHeightMultiplier.SavedValue; });
             }
-            NativeOptionsMod.onOptionsSaved.AddListener(() =>
+            Nuterra.NativeOptions.NativeOptionsMod.onOptionsSaved.AddListener(() =>
             {
                 try
                 {
-                    if (ManWater.UseStandards)
-                        ManWater.SetToStandard();
-                    else
-                        ManWater.SetToCustom();
+                    ManWater.ApplyClientSideSettingsAndSendForHost();
                     thisMod.WriteConfigJsonFile();
                     ManWater.UpdateNetworkedWaterIfNeeded();
                 }
@@ -460,14 +478,10 @@ namespace WaterMod
                     DebugWater.Log(e);
                 }
             });
-            if (ManWater.UseStandards)
-                ManWater.SetToStandard();
-            else
-                ManWater.SetToCustom();
-            WaterBlock.cachedFloatVal = WaterGlobals.Density * 5f;
+            ManWater.ApplyClientSideSettingsAndSendForHost();
         }
 
-        public static void Save()
+        internal static void Save()
         {
             _thisMod.WriteConfigJsonFile();
         }

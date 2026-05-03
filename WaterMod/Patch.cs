@@ -152,7 +152,7 @@ namespace WaterMod
             internal static bool Prefix(TerrainObject __instance, ref WorldTile tile, ref Vector3 pos, 
                 ref Quaternion rot, ref float scale, ref IntVector2 cellCoord, ref Transform __result)
             {
-                if (QPatch.DestroyTreesInWater && pos.y < ManWater.height && 
+                if (WaterGlobals.DestroyTreesInWater && pos.y < ManWater.height && 
                     ManOceanGenerator.ObjectTypesWaterVariants.TryGetValue(__instance.name, out string newSpawn))
                 {
                     try
@@ -290,7 +290,7 @@ namespace WaterMod
             //AddOceanicBiomes
             internal static void Prefix(BiomeMap __instance)
             {
-                if (QPatch.OceanMan2)
+                if (WaterGlobals.OceanMan2)
                     ManOceanGenerator.InitiateAndOrEnableOceanicBiomes(__instance);
                 else
                     ManOceanGenerator.DisableOceanicBiomes(__instance);

@@ -35,6 +35,22 @@ namespace WaterMod
     }
     internal static class WaterGlobals
     {
+        /// <summary> SERVER SETTINGS </summary>
+        public static bool SimulateProjectiles = true;
+        /// <summary> SERVER SETTINGS </summary>
+        public static bool EnableLooseBlocksFloat = true;
+        /// <summary> SERVER SETTINGS </summary>
+        public static bool OceanMan2 = false;
+        /// <summary> SERVER SETTINGS </summary>
+        public static bool DestroyTreesInWater = false;
+        /// <summary> SERVER SETTINGS 
+        /// <para><b>THIS IS NETWORKED SEPERATELY FROM <see cref="NetworkHandler.WaterSettingsMessage"/></b></para></summary>
+        internal static bool WantsLava = false;
+
+        /// <summary>
+        /// The global settings for the Water Mod.
+        /// <para>For the custom values the player can set, see <see cref="ManWater"/></para>
+        /// </summary>
         public static float Density = 8,
             FanJetMultiplier = 1.75f,
             ResourceBuoyancyMultiplier = 1.2f,
@@ -66,6 +82,8 @@ namespace WaterMod
         public static bool UseStandards = true;
         public static float WaterSound = 0.75f;
         public static bool AlwaysShowTrails = false;
+
+
         public static Globals.ObjectLayer WaterLayer => waterLayer;
         private static Globals.ObjectLayer waterLayer = new Globals.ObjectLayer("Water");
 
@@ -90,7 +108,7 @@ namespace WaterMod
         {
             get
             {
-                if (QPatch.OceanMan2)
+                if (WaterGlobals.OceanMan2)
                 {
                     if (UseStandards)
                         return -50;
@@ -101,7 +119,7 @@ namespace WaterMod
             }
             set
             {
-                if (QPatch.OceanMan2)
+                if (WaterGlobals.OceanMan2)
                     heightOcean = value;
                 else
                     height = value;
@@ -120,7 +138,8 @@ namespace WaterMod
 
 
         /// <summary>
-        /// Editable
+        /// Editable.
+        /// <para>For the actual values the mod uses, see <see cref="WaterGlobals"/></para>
         /// </summary>
         public static float Density = 8,
             FanJetMultiplier = 1.75f,
@@ -141,7 +160,8 @@ namespace WaterMod
             WheelWaterForceMultiplier = 0.45f;
 
         /// <summary>
-        /// Non-Editable
+        /// Non-Editable.
+        /// <para>These values are directly used in calculations.</para>
         /// </summary>
         public const float SubmergedBlockDampening = 0.4f,
             SubmergedBlockDampeningYAddition = 0.4f,
@@ -155,9 +175,23 @@ namespace WaterMod
         {
             return 1f - ((1f - initialVal) / 3f);
         }
-        public static void SetToCustom()
+        public static void ApplyClientSideSettingsAndSendForHost()
         {
+            if (ManNetwork.IsHost)
+            {
+                if (UseStandards)
+                    SetToStandard();
+                else
+                    SetToCustom();
+                if (ManNetwork.IsNetworked)
+                    NetworkHandler.TryBroadcastSettingsState();
+            }
+        }
+        private static void SetToCustom()
+        {
+            QPatch.ApplyClientSettings();
             WaterGlobals.Density = Density;
+            WaterBlock.cachedFloatVal = WaterGlobals.Density * 5f;
             WaterGlobals.FanJetMultiplier = FanJetMultiplier;
             WaterGlobals.ResourceBuoyancyMultiplier = ResourceBuoyancyMultiplier;
             WaterGlobals.BulletDampener = BulletDampener;
@@ -175,9 +209,11 @@ namespace WaterMod
             WaterGlobals.LavaDampenMulti = LavaDampenMulti;
             WaterGlobals.WheelWaterForceMultiplier = WheelWaterForceMultiplier;
         }
-        public static void SetToStandard()
+        private static void SetToStandard()
         {
+            QPatch.ApplyClientSettings();
             WaterGlobals.Density = ManWaterDefaults.Density;
+            WaterBlock.cachedFloatVal = ManWaterDefaults.Density * 5f;
             WaterGlobals.FanJetMultiplier = ManWaterDefaults.FanJetMultiplier;
             WaterGlobals.ResourceBuoyancyMultiplier = ManWaterDefaults.ResourceBuoyancyMultiplier;
             WaterGlobals.BulletDampener = ManWaterDefaults.BulletDampener;
@@ -284,6 +320,8 @@ namespace WaterMod
         {
             try
             {
+                if (!ManNetwork.IsNetworked)
+                    ApplyClientSideSettingsAndSendForHost();
                 UpdateLook();
                 // Patch the odd bug where water doesn't appear on the title screen
                 //TerraTechETCUtil.AltUI.BlueStringHUD("yes");
@@ -860,11 +898,27 @@ namespace WaterMod
             catch { }
         }
 
-        public void Save()
+        internal void Save()
         {
             try
             {
                 SafeInit.Save();
+            }
+            catch { }
+        }
+        internal void SetLavaValue(bool state)
+        {
+            try
+            {
+                SafeInit.makeDeath.Value = state;
+            }
+            catch { }
+        }
+        internal void TrySetWaterHeightSlider(float height)
+        {
+            try
+            {
+                SafeInit.TrySetWaterHeightSlider(height);
             }
             catch { }
         }
@@ -924,7 +978,7 @@ namespace WaterMod
             {
                 try
                 {
-                    SafeInit.Save();
+                    _inst.Save();
                 }
                 catch { }
             }
@@ -940,7 +994,7 @@ namespace WaterMod
 
                     try
                     {
-                        SafeInit.TrySetWaterHeightSlider(height);
+                        _inst.TrySetWaterHeightSlider(height);
                     }
                     catch { }
                 }
@@ -1130,7 +1184,7 @@ namespace WaterMod
             }
             else
                 LavaMode.DealPainThisFrame = false;
-            if (QPatch.SimulateProjectiles)
+            if (WaterGlobals.SimulateProjectiles)
                 WaterObj.RemoteFixedUpdateAll();
             foreach (var item in WaterTank.All)
             {
@@ -1382,7 +1436,7 @@ namespace WaterMod
                         {
                             try
                             {
-                                SafeInit.Save();
+                                _inst.Save();
                             }
                             catch { }
                         }

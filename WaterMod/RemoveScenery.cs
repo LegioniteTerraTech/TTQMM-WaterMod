@@ -34,7 +34,7 @@ namespace WaterMod
             //int removed = 0;
             try
             {
-                if (QPatch.DestroyTreesInWater && (ManNetwork.IsHost || !ManNetwork.IsNetworked) &&
+                if (WaterGlobals.DestroyTreesInWater && (ManNetwork.IsHost || !ManNetwork.IsNetworked) &&
                     tile?.Visibles != null && tile.HasReachedLoadState(WorldTile.State.Populated))
                 {
                     foreach (var pair in tile.Visibles[3])

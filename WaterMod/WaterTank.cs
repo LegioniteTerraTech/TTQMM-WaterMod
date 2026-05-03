@@ -20,6 +20,7 @@ namespace WaterMod
         private bool TouchWaterPrev = false;
         internal bool FloationMode = true;
 
+
         public Vector3 AppliedForceCenter = Vector3.zero;
         public Vector3 AppliedForceCenterThisFrame = Vector3.zero;
         public Vector3 AppliedForceDirection = Vector3.zero;
@@ -90,32 +91,32 @@ namespace WaterMod
         private Vector3 posCached = default;
         public Vector3 GetPos()
         {
-            if (lastTime < Time.time && tank.rbody)
+            if (lastTime < Time.time)
             {
                 lastTime = Time.time;
-                posCached = tank.WorldCenterOfMass;
+                posCached = tank.boundsCentreWorldNoCheck;
             }
             return posCached;
         }
 
-        public void AddGeneralBuoyancy(Vector3 position)
+        internal void AddGeneralBuoyancy(Vector3 posScene)
         {
-            SubmergeAdditivePos += position;
+            SubmergeAdditivePos += posScene;
             SubmergeAmount++;//+= 0.9375f;
         }
-        public void AddScaledBuoyancy(Vector3 position, float scale)
+        internal void AddScaledBuoyancy(Vector3 posScene, float scale)
         {
-            SubmergeAdditivePos += position * scale;
+            SubmergeAdditivePos += posScene * scale;
             SubmergeAmount += scale;
         }
 
-        public void AddSurface(Vector3 position)
+        internal void AddSurface(Vector3 posScene)
         {
-            SurfaceAdditivePos += position;
+            SurfaceAdditivePos += posScene;
             SurfaceCount++;
         }
 
-        public void PlaySplashSFX()
+        internal void PlaySplashSFX()
         {
             Vector3 exts = tank.blockBounds.size;
             float extent = Mathf.Max(exts.x, exts.y, exts.z);
@@ -146,7 +147,7 @@ namespace WaterMod
         }
         public float speedAvg = 0;
         public float speedVol = 0;
-        public void MaintainTraversalNoise()
+        internal void MaintainTraversalNoise()
         {
             AudioInst Audio;
             if (QPatch.OnlyPlayerWaterTraverseSFX)
@@ -202,41 +203,82 @@ namespace WaterMod
         }
         private static object[] nothing = new object[0];
         private static MethodInfo lightCheck = typeof(ModuleLight).GetMethod("RefreshLightsActive", BindingFlags.Instance | BindingFlags.NonPublic);
-        public void RemoteFixedUpdate()
+        internal void RemoteFixedUpdate()
         {
             AppliedForceCenterThisFrame = Vector3.zero;
             AppliedForceDirectionThisFrame = Vector3.zero;
             if (ManWater.WorldMove || tank.rbody == null || (tank.Anchors.NumAnchored > tank.Anchors.NumSkyAnchored))
                 return; // the world is treadmilling and we must ignore the delayed physics update to prevent fling
             // or we are static anchored and physics should not be applied to us
-            foreach (var ite in tank.blockman.IterateBlocks())
-            {
-                if (ite == null)
-                    continue;
-                try
-                {
-                    WaterBlock item = WaterBlock.Insure(ite);
-                    float heightDelta = item.transform.TransformPoint(item.TankBlock.CentreOfMass).y - ManWater.HeightCalc;
-                    if (heightDelta > item.radius)
-                    {
-                        item.UpdateAttached(SubState.Above);
-                    }
-                    else if (heightDelta > -item.radius)
-                    {
-                        item.UpdateAttached(SubState.Float);
-                        item.ApplyConnectedForce();
-                    }
-                    else
-                    {
-                        item.UpdateAttached(SubState.Below);
-                        item.ApplyConnectedForceFullySubmerged();
-                    }
-                }
-                catch (Exception e){ DebugWater.Log(e); }
-            }
             int bCount = tank.blockman.blockCount;
             if (bCount == 0)
                 return;
+
+            float Extents = tank.blockBounds.extents.GetChebychev();
+            float tankCentralHeight = tank.boundsCentreWorldNoCheck.y;
+            float waterHeight = ManWater.HeightCalc;
+            if (tankCentralHeight + Extents < waterHeight)
+            {   // We are submerged
+                Matrix4x4 tankToWorld = tank.trans.localToWorldMatrix;
+                foreach (var itemBlock in tank.blockman.IterateBlocks())
+                {
+                    if (itemBlock == null)
+                        continue;
+                    try
+                    {
+                        WaterBlock item = WaterBlock.Insure(itemBlock);
+                        item.UpdateAttached(SubState.Below);
+                        AddScaledBuoyancy(tankToWorld.MultiplyPoint3x4(item.COBSubmergedTankSpace), item.CalcFullBouyForce());
+                        item.ApplyConnectedForceFullySubmerged();
+                    }
+                    catch (Exception e) { DebugWater.Log(e); }
+                }
+            }
+            else if (tankCentralHeight - Extents > waterHeight)
+            {   // We are too high above the water 
+                foreach (var itemBlock in tank.blockman.IterateBlocks())
+                {
+                    if (itemBlock == null)
+                        continue;
+                    try
+                    {
+                        WaterBlock.Insure(itemBlock).UpdateAttached(SubState.Above);
+                    }
+                    catch (Exception e) { DebugWater.Log(e); }
+                }
+            }
+            else
+            {   // We are in the water. Do full calculation
+                Matrix4x4 tankToWorld = tank.trans.localToWorldMatrix;
+                foreach (var itemBlock in tank.blockman.IterateBlocks())
+                {
+                    if (itemBlock == null)
+                        continue;
+                    try
+                    {
+                        WaterBlock item = WaterBlock.Insure(itemBlock);
+                        Vector3 posScene = tankToWorld.MultiplyPoint3x4(item.COBSubmergedTankSpace);
+                        float heightDelta = posScene.y - waterHeight;
+                        if (heightDelta > item.radius)
+                        {
+                            item.UpdateAttached(SubState.Above);
+                        }
+                        else if (heightDelta > -item.radius)
+                        {
+                            item.UpdateAttached(SubState.Float);
+                            item.ApplyConnectedForce();
+                        }
+                        else
+                        {
+                            item.UpdateAttached(SubState.Below);
+                            AddScaledBuoyancy(posScene, item.CalcFullBouyForce());
+                            item.ApplyConnectedForceFullySubmerged();
+                        }
+                    }
+                    catch (Exception e) { DebugWater.Log(e); }
+                }
+            }
+
             Vector3 Velo = tank.rbody.velocity;
             // Vector3 Velo = tank.rbody.velocity - (Physics.gravity * Time.fixedDeltaTime);
             bool touchWater = SubmergedThisUpdate || SurfaceCount > 0;

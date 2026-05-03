@@ -90,6 +90,7 @@ namespace WaterMod
         public WaterTank watertank;
         public BlockSpecial Special;
         public Vector3 CenterOfBouySubmerged;
+        public Vector3 COBSubmergedTankSpace;
         public MonoBehaviour[] componentEffects;
         public List<ManWheels.Wheel> wheelTracker;
         public Vector3[] initVelocities;
@@ -197,11 +198,14 @@ namespace WaterMod
             TankBlock.IgnoreCollision(ManWater.seaCol, true);
             radius = TankBlock.BlockCellBounds.extents.magnitude + 0.75f;
             UpdateAttached(SubState.Above);
+            COBSubmergedTankSpace = TankBlock.tank.trans.InverseTransformPoint(
+                TankBlock.trans.transform.TransformPoint(CenterOfBouySubmerged));
         }
         internal void OnDetach()
         {
             TryRemoveSurface();
             TankBlock.IgnoreCollision(ManWater.seaCol, false);
+            UpdateAttached(SubState.Above);
             watertank = null;
         }
         public void PlaySplashSFX()
@@ -507,7 +511,7 @@ namespace WaterMod
         {
             Vector3 centerOfMass = TankBlock.centreOfMassWorld;
             ApplyDamageIfLava(centerOfMass);
-            if (!QPatch.EnableLooseBlocksFloat)
+            if (!WaterGlobals.EnableLooseBlocksFloat)
                 return;
             Vector3 velo = TankBlock.rbody.velocity;
             if (centerOfMass.y - ManWater.HeightCalc > ManWater.minBlockSleepHeight && velo.Approximately(Vector3.zero, 0.25f))
@@ -538,26 +542,29 @@ namespace WaterMod
             {
                 SurfaceUpdate();
             }
-            Vector3 counterForce = -(velo * ManWater.SurfaceBlockDampening + (Vector3.up *
-                        (velo.y * ManWater.SubmergedBlockDampeningYAddition))) * Submerge;
+            Vector3 counterAcceleration = -(velo * ManWater.SurfaceBlockDampening + (Vector3.up *
+                        (velo.y * ManWater.SubmergedBlockDampeningYAddition))) * Submerge * TankBlock.rbody.mass;
             if (invert)
             {
-                TankBlock.rbody.AddForce(Vector3.down * (Submerge * cachedFloatVal * TankBlock.filledCells.Length));
-                TankBlock.rbody.AddForce(-counterForce, ForceMode.Acceleration);
+                TankBlock.rbody.AddForce((Vector3.down * (Submerge * cachedFloatVal * TankBlock.filledCells.Length)) - counterAcceleration);
+                //TankBlock.rbody.AddForce(-counterAcceleration, ForceMode.Acceleration);
             }
             else
             {
-                TankBlock.rbody.AddForce(Vector3.up * (Submerge * cachedFloatVal * TankBlock.filledCells.Length));
-                TankBlock.rbody.AddForce(counterForce, ForceMode.Acceleration);
+                TankBlock.rbody.AddForce((Vector3.up * (Submerge * cachedFloatVal * TankBlock.filledCells.Length)) + counterAcceleration);
+                //TankBlock.rbody.AddForce(counterAcceleration, ForceMode.Acceleration);
             }
         }
 
-        public void ApplyConnectedForceFullySubmerged()
+        public float CalcFullBouyForce()
         {
             float bouy = TankBlock.filledCells.Length;
             if (Special >= BlockSpecial.Hollow)
                 bouy *= watertank.FloationMode ? ManWater.BasicBlockFloatAssistMulti : 1f;
-            watertank.AddScaledBuoyancy(transform.TransformPoint(CenterOfBouySubmerged), bouy);
+            return bouy;
+        }
+        public void ApplyConnectedForceFullySubmerged()
+        {
             SubmergeUpdate();
             switch (Special)
             {
@@ -578,7 +585,7 @@ namespace WaterMod
                     break;
             }
         }
-        public void ApplyConnectedForce()
+        internal void ApplyConnectedForce()
         {
             IntVector3[] intVector = TankBlock.filledCells;
             int CellCount = intVector.Length;
@@ -669,7 +676,7 @@ namespace WaterMod
             PlaySplashSFX();
             Enter();
         }
-        public void Enter()
+        internal void Enter()
         {
             SurfaceUpdate();
             try
@@ -690,7 +697,7 @@ namespace WaterMod
                 TankBlock.rbody.angularDrag = 0f;
             submergedLone.Remove(this);
         }
-        public void Exit()
+        internal void Exit()
         {
             TryRemoveSurface();
             try

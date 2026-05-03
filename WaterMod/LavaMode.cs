@@ -31,19 +31,19 @@ namespace WaterMod
 
         public static void ThrowLavaDeathWarning()
         {
-            if (QPatch.WantsLava && !QPatch.TheWaterIsLava)
+            if (WaterGlobals.WantsLava && !QPatch.TheWaterIsLava)
             {
                 WarnLavaMP = ManNetwork.inst.IsMultiplayer() && !ManNetwork.IsHost;
                 Singleton.Manager<ManSFX>.inst.PlayUISFX(ManSFX.UISfxType.MissionFailed);
                 warner.SetActive(true);
                 if (WarnLavaMP)
                 {
-                    QPatch.WantsLava = false;
+                    WaterGlobals.WantsLava = false;
                 }
             }
             else
             {
-                if (!QPatch.WantsLava)
+                if (!WaterGlobals.WantsLava)
                     QPatch.theWaterIsLava = false;
                 ManWater.UpdateNetworkedWaterIfNeeded();
             }
@@ -51,6 +51,7 @@ namespace WaterMod
         public static void ScreamLava()
         {
             Singleton.Manager<ManSFX>.inst.PlayMiscLoopingSFX(ManSFX.MiscSfxType.CabDetachKlaxon);
+            UIHelpersExt.BigF5broningBannerMP("LAVA HAS BEEN ACTIVATED", false);
             inst.Invoke("ShutTheFrontDoor", 2.6f);
         }
         public void ShutTheFrontDoor()
@@ -80,11 +81,11 @@ namespace WaterMod
                     if (GUILayout.Button("Stay Safe", TerraTechETCUtil.AltUI.ButtonGreen))
                     {
                         Singleton.Manager<ManSFX>.inst.PlayUISFX(ManSFX.UISfxType.Back);
-                        QPatch.WantsLava = false;
+                        WaterGlobals.WantsLava = false;
                         gameObject.SetActive(false);
                         try
                         {
-                            SafeInit.makeDeath.Value = false;
+                            ManWater._inst.SetLavaValue(false);
                         }
                         catch { }
                     }
@@ -96,7 +97,11 @@ namespace WaterMod
                         ManWater.UpdateNetworkedWaterIfNeeded();
                         ManWater.UpdateLook();
                         SurfacePool.UpdateAllActiveParticles();
-                        ManWater._inst.Save();
+                        try
+                        {
+                            ManWater._inst.Save();
+                        }
+                        catch { }
                         gameObject.SetActive(false);
                     }
                 }
@@ -107,11 +112,11 @@ namespace WaterMod
                     if (GUILayout.Button("<b>Okay</b>"))
                     {
                         Singleton.Manager<ManSFX>.inst.PlayUISFX(ManSFX.UISfxType.InfoClose);
-                        QPatch.WantsLava = false;
+                        WaterGlobals.WantsLava = false;
                         gameObject.SetActive(false);
                         try
                         {
-                            SafeInit.makeDeath.Value = false;
+                            ManWater._inst.SetLavaValue(false);
                         }
                         catch { }
                     }

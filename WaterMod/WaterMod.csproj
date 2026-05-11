@@ -57,6 +57,10 @@
       <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\workshop\content\285920\2765217410\TAC_AI.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\TerraTech\TerraTechWin64_Data\Managed\Newtonsoft.Json.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)'=='Release'OR'$(Configuration)'=='Debug'">
     <!--> zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz </!-->
@@ -94,6 +98,10 @@
     </Reference>
     <Reference Include="Assembly-CSharp-firstpass">
       <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\common\TerraTech\TerraTechWin64_Data\Managed\Assembly-CSharp-firstpass.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="NuterraWorld">
+      <HintPath>..\..\..\..\..\..\Program Files (x86)\Steam\steamapps\workshop\content\285920\3719586605\NuterraWorld.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="SafeSaves">
@@ -178,15 +186,19 @@
     <Compile Include="WeatherMod.cs" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="PatchBatch\GlobalPatches.cs" />
+    <Compile Include="PatchBatch\VisualPatches.cs" />
+    <Compile Include="WaterGlobals.cs" />
+    <Compile Include="WaterWiki.cs" />
     <None Include="CustomSceneryMaker.cs" />
     <Compile Include="DebugWater.cs" />
     <Compile Include="EEffectTypes.cs" />
     <Compile Include="KickStartWaterMod.cs" />
     <Compile Include="LavaMode.cs" />
-    <Compile Include="MainPatches.cs" />
+    <Compile Include="PatchBatch\MainPatches.cs" />
     <Compile Include="NetworkHandler.cs" />
     <Compile Include="OBJParser.cs" />
-    <Compile Include="ManOceanGenerator.cs" />
+    <Compile Include="OceanMan\ManOceanGenerator.cs" />
     <Compile Include="QPatch.cs" />
     <Compile Include="RemoveScenery.cs" />
     <Compile Include="WaterBlock.cs" />
@@ -194,7 +206,7 @@
     <Compile Include="WaterEffect.cs" />
     <Compile Include="WaterObj.cs" />
     <Compile Include="WaterParticleHandler.cs" />
-    <Compile Include="Patch.cs" />
+    <Compile Include="PatchBatch\Patch.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="WaterTank.cs" />
     <Compile Include="WaterTile.cs" />

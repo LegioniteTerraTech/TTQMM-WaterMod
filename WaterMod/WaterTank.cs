@@ -124,7 +124,7 @@ namespace WaterMod
             {
                 if (SplashSmall != null)
                 {
-                    SplashSmall.Volume = 0.5f * Mathf.Clamp01(Mathf.Abs(speedVol));
+                    SplashSmall.Volume = ManWater.WaterSoundSplash * 0.5f * Mathf.Clamp01(Mathf.Abs(speedVol));
                     SplashSmall.Play();
                 }
             }
@@ -132,7 +132,7 @@ namespace WaterMod
             {
                 if (SplashMedium != null)
                 {
-                    SplashMedium.Volume = 0.4f * Mathf.Clamp01(Mathf.Abs(speedVol));
+                    SplashMedium.Volume = ManWater.WaterSoundSplash * 0.4f * Mathf.Clamp01(Mathf.Abs(speedVol));
                     SplashMedium.Play();
                 }
             }
@@ -140,7 +140,7 @@ namespace WaterMod
             {
                 if (SplashLarge != null)
                 {
-                    SplashLarge.Volume = 0.5f * Mathf.Clamp01(Mathf.Abs(speedVol));
+                    SplashLarge.Volume = ManWater.WaterSoundSplash * 0.5f * Mathf.Clamp01(Mathf.Abs(speedVol));
                     SplashLarge.Play();
                 }
             }
@@ -289,49 +289,40 @@ namespace WaterMod
             }
 
             if (SubmergeAmount > 0)
-            {
+            {   // Flotation forces
                 Vector3 ForceCenter = SubmergeAdditivePos / SubmergeAmount;
                 Vector3 ForceLift = Vector3.up * (WaterGlobals.Density * 7.5f) * SubmergeAmount;
                 AppliedForceCenterThisFrame = ForceCenter;
                 AppliedForceDirectionThisFrame = ForceLift;
                 tank.rbody.AddForceAtPosition(ForceLift, ForceCenter);
                 SubmergeAdditivePos = Vector3.zero;
-                /*
-                Vector3 ForceAppF;
-                if (QPatch.TheWaterIsLava)
+
+                // Drag forces
+                if (!Velo.ApproxZero())
                 {
-                    ForceAppF = -(Velo * ManWater.ApplyLava(WaterGlobals.SubmergedTankDampening) + (Vector3.up *
-                        (Velo.y * ManWater.ApplyLava(WaterGlobals.SubmergedTankDampeningYAddition)))) * (SubmergeAmount / bCount);
+                    Vector3 force;
+                    Vector3 inertia = Velo * tank.rbody.mass;
+                    Quaternion projection = Quaternion.LookRotation(Velo.normalized);
+                    Quaternion projectionOrigin = Quaternion.Inverse(projection);
+                    if (QPatch.TheWaterIsLava)
+                    {
+                        force = -(Velo * WaterGlobals.SubmergedTankDampening * 3 + (Vector3.up *
+                            (Velo.y * WaterGlobals.SubmergedTankDampeningYAddition))) * SubmergeAmount;
+                    }
+                    else
+                    {
+                        force = -(Velo * WaterGlobals.SubmergedTankDampening + (Vector3.up *
+                            (Velo.y * WaterGlobals.SubmergedTankDampeningYAddition))) * SubmergeAmount;
+                    }
+                    Vector3 forceAligned = projectionOrigin * force;
+                    Vector3 inertiaAligned = projectionOrigin * inertia;
+                    if (forceAligned.z + inertiaAligned.z < 0)
+                    {
+                        forceAligned.z = -inertiaAligned.z;
+                        force = projection * forceAligned;
+                    }
+                    tank.rbody.AddForce(force, ForceMode.Force);
                 }
-                else
-                {
-                    ForceAppF = -(Velo * WaterGlobals.SubmergedTankDampening + (Vector3.up *
-                        (Velo.y * WaterGlobals.SubmergedTankDampeningYAddition))) * (SubmergeAmount / bCount);
-                }
-                tank.rbody.AddForceAtPosition(ForceAppF, ForceCenter, ForceMode.Acceleration);
-                */
-                Vector3 inertia = Velo * tank.rbody.mass;
-                Quaternion projection = Quaternion.LookRotation(Velo.normalized);
-                Quaternion projectionOrigin = Quaternion.Inverse(projection);
-                Vector3 force;
-                if (QPatch.TheWaterIsLava)
-                {
-                    force = -(Velo * WaterGlobals.SubmergedTankDampening * 3 + (Vector3.up *
-                        (Velo.y * WaterGlobals.SubmergedTankDampeningYAddition))) * SubmergeAmount;
-                }
-                else
-                {
-                    force = -(Velo * WaterGlobals.SubmergedTankDampening + (Vector3.up *
-                        (Velo.y * WaterGlobals.SubmergedTankDampeningYAddition))) * SubmergeAmount;
-                }
-                Vector3 forceAligned = projectionOrigin * force;
-                Vector3 inertiaAligned = projectionOrigin * inertia;
-                if (forceAligned.z + inertiaAligned.z < 0)
-                {
-                    forceAligned.z = -inertiaAligned.z;
-                    force = projection * forceAligned;
-                }
-                tank.rbody.AddForce(force, ForceMode.Force);
                 //tank.rbody.AddForceAtPosition(force, ForceCenter, ForceMode.Force);
                 SubmergeAmount = 0;
                 SubmergedThisUpdate = true;
@@ -340,70 +331,54 @@ namespace WaterMod
                 SubmergedThisUpdate = false;
             MaintainTraversalNoise();
             if (SurfaceCount != 0)
-            {
+            {   // Flotation forces are handled in each block at the surface
+
                 if (SurfaceCountPrev == 0)
-                {
+                {   // We have JUST submerged, update all lights to turn on!
                     try
                     {
                         foreach (var light in OnSplashdown)
                         {
                             if (light != null)
-                                lightCheck.Invoke(light, nothing);
+                            {
+                                try
+                                {
+                                    lightCheck.Invoke(light, nothing);
+                                }
+                                catch { }
+                            }
                         }
                     }
                     catch { }
                 }
                 SurfaceCountPrev = SurfaceCount;
-                /*
-                Vector3 ForceAppF;
-                if (QPatch.TheWaterIsLava)
-                {
-                    ForceAppF = -(Velo * ManWater.ApplyLava(WaterGlobals.SurfaceTankDampening) + (Vector3.up *
-                        (Velo.y * ManWater.ApplyLava(WaterGlobals.SurfaceTankDampeningYAddition)))) * (SurfaceCount / bCount);
-                }
-                else
-                {
-                    ForceAppF = -(Velo * WaterGlobals.SurfaceTankDampening + (Vector3.up *
-                        (Velo.y * WaterGlobals.SurfaceTankDampeningYAddition))) * (SurfaceCount / bCount);
-                }
-                tank.rbody.AddForceAtPosition(ForceAppF, SurfaceAdditivePos / SurfaceCount, ForceMode.Acceleration);
-                */
-                Vector3 force;
-                Vector3 forceOrigin = SurfaceAdditivePos / SurfaceCount;
-                if (QPatch.TheWaterIsLava)
-                    force = -(Velo * WaterGlobals.SurfaceTankDampening * 3 + (Vector3.up *
-                        (Velo.y * WaterGlobals.SurfaceTankDampeningYAddition))) * SurfaceCount;
-                else
-                    force = -(Velo * WaterGlobals.SurfaceTankDampening + (Vector3.up *
-                        (Velo.y * WaterGlobals.SurfaceTankDampeningYAddition))) * SurfaceCount;
-                /*
-                Velo = tank.rbody.GetPointVelocity(forceOrigin);
-                Vector3 inertia = Velo * tank.rbody.mass;
-                Quaternion projection = Quaternion.LookRotation(Velo.normalized);
-                Quaternion projectionOrigin = Quaternion.Inverse(projection);
-                Vector3 forceAligned = projectionOrigin * force;
-                Vector3 inertiaAligned = projectionOrigin * inertia;
-                if (forceAligned.z + inertiaAligned.z < 0)
-                {
-                    forceAligned.z = -inertiaAligned.z;
-                    force = projection * forceAligned;
-                }
-                */
 
-                float surfMag = force.magnitude;
-                float subMag = AppliedForceDirectionThisFrame.magnitude;
-                float combined = surfMag + subMag;
-                if (combined != 0)
+                // Drag forces
+                if (!Velo.ApproxZero())
                 {
-                    float surfWeight = surfMag / combined;
-                    float subWeight = subMag / combined;
-                    AppliedForceCenterThisFrame = (AppliedForceCenterThisFrame * subWeight) +
-                        (forceOrigin * surfWeight);
-                    AppliedForceDirectionThisFrame = (AppliedForceDirectionThisFrame * subWeight) +
-                        (force * surfWeight);
-                }
-                tank.rbody.AddForceAtPosition(force, forceOrigin);
+                    Vector3 force;
+                    Vector3 forceOrigin = SurfaceAdditivePos / SurfaceCount;
+                    if (QPatch.TheWaterIsLava)
+                        force = -(Velo * WaterGlobals.SurfaceTankDampening * 3 + (Vector3.up *
+                            (Velo.y * WaterGlobals.SurfaceTankDampeningYAddition))) * SurfaceCount;
+                    else
+                        force = -(Velo * WaterGlobals.SurfaceTankDampening + (Vector3.up *
+                            (Velo.y * WaterGlobals.SurfaceTankDampeningYAddition))) * SurfaceCount;
 
+                    float surfMag = force.magnitude;
+                    float subMag = AppliedForceDirectionThisFrame.magnitude;
+                    float combined = surfMag + subMag;
+                    if (combined != 0)
+                    {
+                        float surfWeight = surfMag / combined;
+                        float subWeight = subMag / combined;
+                        AppliedForceCenterThisFrame = (AppliedForceCenterThisFrame * subWeight) +
+                            (forceOrigin * surfWeight);
+                        AppliedForceDirectionThisFrame = (AppliedForceDirectionThisFrame * subWeight) +
+                            (force * surfWeight);
+                    }
+                    tank.rbody.AddForceAtPosition(force, forceOrigin);
+                }
 
                 SurfaceAdditivePos = Vector3.zero;
                 SurfaceCount = 0;

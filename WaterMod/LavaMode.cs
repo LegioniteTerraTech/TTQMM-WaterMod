@@ -29,21 +29,21 @@ namespace WaterMod
             warner.gameObject.SetActive(false);
         }
 
-        public static void ThrowLavaDeathWarning()
+        public static void ThrowLavaDeathWarningIfNeeded()
         {
-            if (WaterGlobals.WantsLava && !QPatch.TheWaterIsLava)
+            if (QPatch.WantsLava && !QPatch.TheWaterIsLava)
             {
                 WarnLavaMP = ManNetwork.inst.IsMultiplayer() && !ManNetwork.IsHost;
                 Singleton.Manager<ManSFX>.inst.PlayUISFX(ManSFX.UISfxType.MissionFailed);
                 warner.SetActive(true);
                 if (WarnLavaMP)
                 {
-                    WaterGlobals.WantsLava = false;
+                    QPatch.WantsLava = false;
                 }
             }
             else
             {
-                if (!WaterGlobals.WantsLava)
+                if (!QPatch.WantsLava)
                     QPatch.theWaterIsLava = false;
                 ManWater.UpdateNetworkedWaterIfNeeded();
             }
@@ -81,7 +81,7 @@ namespace WaterMod
                     if (GUILayout.Button("Stay Safe", TerraTechETCUtil.AltUI.ButtonGreen))
                     {
                         Singleton.Manager<ManSFX>.inst.PlayUISFX(ManSFX.UISfxType.Back);
-                        WaterGlobals.WantsLava = false;
+                        QPatch.theWaterIsLava = false;
                         gameObject.SetActive(false);
                         try
                         {
@@ -112,7 +112,7 @@ namespace WaterMod
                     if (GUILayout.Button("<b>Okay</b>"))
                     {
                         Singleton.Manager<ManSFX>.inst.PlayUISFX(ManSFX.UISfxType.InfoClose);
-                        WaterGlobals.WantsLava = false;
+                        QPatch.theWaterIsLava = false;
                         gameObject.SetActive(false);
                         try
                         {

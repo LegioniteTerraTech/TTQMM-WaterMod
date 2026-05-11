@@ -18,14 +18,12 @@ namespace WaterMod
 
         public static void Initiate()
         {   // 
+            if (inst != null)
+                return;
             var startup = new GameObject("RemoveScenery");
-            startup.AddComponent<RemoveScenery>();
-            inst = startup.GetComponent<RemoveScenery>();
-            DebugWater.Log("WaterMod: ResSpawnOverride - Initated!");
-        }
-        public static void Sub()
-        { 
-            Singleton.Manager<ManWorld>.inst.TileManager.TilePopulatedEvent.Subscribe(RemoveTrees);
+            inst = startup.AddComponent<RemoveScenery>();
+            DebugWater.Log("WaterMod: WaterMod.RemoveScenery - Initated!");
+            ManWorld.inst.TileManager.TileLoadedEvent.Subscribe(RemoveTrees);
         }
 
         private static List<ResourceDispenser> toRemove = new List<ResourceDispenser>();
@@ -34,10 +32,10 @@ namespace WaterMod
             //int removed = 0;
             try
             {
-                if (WaterGlobals.DestroyTreesInWater && (ManNetwork.IsHost || !ManNetwork.IsNetworked) &&
-                    tile?.Visibles != null && tile.HasReachedLoadState(WorldTile.State.Populated))
+                if (WaterGlobals.DestroyTreesInWater && !WaterGlobals.OceanMan2 && 
+                    (ManNetwork.IsHost || !ManNetwork.IsNetworked) && tile?.Visibles != null)
                 {
-                    foreach (var pair in tile.Visibles[3])
+                    foreach (var pair in tile.Visibles[(int)ObjectTypes.Scenery])
                     {
                         Visible vis = pair.Value;
                         try

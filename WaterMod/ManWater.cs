@@ -1,11 +1,11 @@
 ﻿using System;
-using System.Reflection;
-using UnityEngine;
-using System.Linq;
 using System.Collections.Generic;
-using FMODUnity;
+using System.Linq;
+using System.Reflection;
+using SafeSaves;
 using TerraTechETCUtil;
-using UnityEngine.UI;
+using UnityEngine;
+
 #if !STEAM
 using QModManager.Utility;
 #endif
@@ -13,224 +13,59 @@ using QModManager.Utility;
 
 namespace WaterMod
 {
-    internal static class ManWaterDefaults
+    [AutoSaveManager]
+    public class ManWaterSaveData
     {
-        public const float Density = 8,
-            FanJetMultiplier = 1.75f,
-            ResourceBuoyancyMultiplier = 1.2f,
-            BulletDampener = 1E-06f,
-            LaserFraction = 0.275f,
-            MissileDampener = 0.012f,
-            SurfaceSkinning = 0.25f,
-            SubmergedTankDampening = 0.4f,
-            SubmergedTankDampeningYAddition = 0f,
-            SurfaceTankDampening = 0f,
-            SurfaceTankDampeningYAddition = 1f,
-            RainWeightMultiplier = 0.06f,
-            RainDrainMultiplier = 0.06f,
-            FloodChangeClamp = 0.002f,
-            AbyssDepth = 50f,
-            LavaDampenMulti = 3,
-            WheelWaterForceMultiplier = 0.45f;
+        [SSManagerInst]
+        public static ManWaterSaveData inst = new ManWaterSaveData();
+        [SSaveField]
+        public float HeightSave;
     }
-    internal static class WaterGlobals
-    {
-        /// <summary> SERVER SETTINGS </summary>
-        public static bool SimulateProjectiles = true;
-        /// <summary> SERVER SETTINGS </summary>
-        public static bool EnableLooseBlocksFloat = true;
-        /// <summary> SERVER SETTINGS </summary>
-        public static bool OceanMan2 = false;
-        /// <summary> SERVER SETTINGS </summary>
-        public static bool DestroyTreesInWater = false;
-        /// <summary> SERVER SETTINGS 
-        /// <para><b>THIS IS NETWORKED SEPERATELY FROM <see cref="NetworkHandler.WaterSettingsMessage"/></b></para></summary>
-        internal static bool WantsLava = false;
 
-        /// <summary>
-        /// The global settings for the Water Mod.
-        /// <para>For the custom values the player can set, see <see cref="ManWater"/></para>
-        /// </summary>
-        public static float Density = 8,
-            FanJetMultiplier = 1.75f,
-            ResourceBuoyancyMultiplier = 1.2f,
-            BulletDampener = 1E-06f,
-            LaserFraction = 0.275f,
-            MissileDampener = 0.012f,
-            SurfaceSkinning = 0.25f,
-            SubmergedTankDampening = 0.4f,
-            SubmergedTankDampeningYAddition = 0f,
-            SurfaceTankDampening = 0f,
-            SurfaceTankDampeningYAddition = 1f,
-            RainWeightMultiplier = 0.06f,
-            RainDrainMultiplier = 0.06f,
-            FloodChangeClamp = 0.002f,
-            AbyssDepth = 50f,
-            LavaDampenMulti = 3,
-            WheelWaterForceMultiplier = 0.45f;
-    }
     /// <summary>
     /// Was WaterBuoyancy 
     ///   Note: Can make more efficent by localizing the float vector in relation to water
     /// </summary>
     internal class ManWater : MonoBehaviour
     {
-        private const float physicsZoneSize = 65536f;//4096f
+        // ------------------------  PRIMARIES  ------------------------
+        public static ManWater _inst;
+        public static BoxCollider seaCol;
+        public static Transform splashCol;
+        public static GameObject PhysicsZone;
 
-        private static FieldInfo m_Sky = typeof(ManTimeOfDay).GetField("m_Sky", BindingFlags.NonPublic | BindingFlags.Instance);
+        public static bool _WeatherMod;
+        //public static GameObject surface;
+        internal static bool WorldMove = false;
+        internal static bool WorldDidMove = false;
 
-        public static bool UseStandards = true;
-        public static float WaterSound = 0.75f;
-        public static bool AlwaysShowTrails = false;
-
-
-        public static Globals.ObjectLayer WaterLayer => waterLayer;
-        private static Globals.ObjectLayer waterLayer = new Globals.ObjectLayer("Water");
-
-        public static float Brightener = 0.65f;
-        public static Color waterColor = new Color(0.125f, 0.25f, 0.65f, 0.875f); //new Color(0.125f, 0.35f, 0.65f, 0.875f);
-        public static Color waterColorBright = new Color(Brightener, Brightener, Brightener, 0) * (new Color(1,1,1,1) - waterColor) + waterColor - new Color(0, 0, 0, 0.5f);
-        public static Color lavaColor = new Color(0.97f, 0.41f, 0.024f, 0.9f);
-        public static Color lavaColorBright = new Color(Brightener, Brightener, Brightener, 0) * (new Color(1, 1, 1, 1) - lavaColor) + lavaColor - new Color(0,0,0,0.5f);
-        public static EventNoParams WaterFixedUpdate = new EventNoParams();
-        public static EventNoParams WaterLateUpdate = new EventNoParams();
-
-        public static Texture2D CameraFilter;
-        public static Texture2D CameraFilterLava; 
-        public static Texture2D WaterTex;
-        public static Texture2D LavaTex;
 
         /// <summary>
-        /// The PLAYER set height of the water height.
-        /// <para> Does not take action if we aren't the main host</para>
+        /// The final applied value of the water height before it is sent to other systems
         /// </summary>
-        public static float Height
+        public static float HeightCalc => heightCalcSet;
+        /// <summary>
+        /// The ACTUAL applied value of the water height based on the client's values
+        /// </summary>
+        public static float heightCalcSet = -50;//-25;
+        /// <summary>
+        /// Our local client's water height value to be suggested to.
+        /// <para> Will deviate based on rainfall (<c>rainFlood</c>) and be overriden by the server host if we aren't the main host</para>
+        /// </summary>
+        public static float heightCalc = -50;//-25;
+
+        public static float RainFlood
         {
-            get
-            {
-                if (WaterGlobals.OceanMan2)
-                {
-                    if (UseStandards)
-                        return -50;
-                    else
-                        return heightOcean;
-                }
-                return height;
-            }
+            get { return rainFlood; }
             set
             {
-                if (WaterGlobals.OceanMan2)
-                    heightOcean = value;
-                else
-                    height = value;
+                rainFlood = value;
                 if (UpdateHeightCalc())
                     ApplyHeightCalc(heightCalc);
             }
         }
-        public static float height = -25f;
-        public static float heightOcean = -25f;
-        /// <summary>
-        /// The height that blocks shall be able to sleep at when their bounds is within some range of this given height. 
-        /// <para> Lazy updated!  The client determines the sleep height - for now...</para>
-        /// </summary>
-        public static float minBlockSleepHeight = HeightCalc + BlockSleepHeightOffset;
-        public static float BlockSleepHeightOffset = -8f;
 
-
-        /// <summary>
-        /// Editable.
-        /// <para>For the actual values the mod uses, see <see cref="WaterGlobals"/></para>
-        /// </summary>
-        public static float Density = 8,
-            FanJetMultiplier = 1.75f,
-            ResourceBuoyancyMultiplier = 1.2f,
-            BulletDampener = 1E-06f,
-            LaserFraction = 0.275f,
-            MissileDampener = 0.012f,
-            SurfaceSkinning = 0.25f,
-            SubmergedTankDampening = 0.4f,//0.01f,
-            SubmergedTankDampeningYAddition = 0.25f,//0f,
-            SurfaceTankDampening = 0f,
-            SurfaceTankDampeningYAddition = 0.5f,//0.0225f,
-            RainWeightMultiplier = 0.06f,
-            RainDrainMultiplier = 0.06f,
-            FloodChangeClamp = 0.002f,
-            AbyssDepth = 50f,
-            LavaDampenMulti = 3,
-            WheelWaterForceMultiplier = 0.45f;
-
-        /// <summary>
-        /// Non-Editable.
-        /// <para>These values are directly used in calculations.</para>
-        /// </summary>
-        public const float SubmergedBlockDampening = 0.4f,
-            SubmergedBlockDampeningYAddition = 0.4f,
-            SurfaceBlockDampening = 0.2f,
-            SurfaceBlockDampeningYAddition = 0.75f,
-            BasicBlockFloatAssistMulti = 2.75f,
-            SmallWheelWaterBuff = 2.25f,
-            MinWheelMaxForce = 2.5f;
-
-        public static float ApplyLava(float initialVal)
-        {
-            return 1f - ((1f - initialVal) / 3f);
-        }
-        public static void ApplyClientSideSettingsAndSendForHost()
-        {
-            if (ManNetwork.IsHost)
-            {
-                if (UseStandards)
-                    SetToStandard();
-                else
-                    SetToCustom();
-                if (ManNetwork.IsNetworked)
-                    NetworkHandler.TryBroadcastSettingsState();
-            }
-        }
-        private static void SetToCustom()
-        {
-            QPatch.ApplyClientSettings();
-            WaterGlobals.Density = Density;
-            WaterBlock.cachedFloatVal = WaterGlobals.Density * 5f;
-            WaterGlobals.FanJetMultiplier = FanJetMultiplier;
-            WaterGlobals.ResourceBuoyancyMultiplier = ResourceBuoyancyMultiplier;
-            WaterGlobals.BulletDampener = BulletDampener;
-            WaterGlobals.LaserFraction = LaserFraction;
-            WaterGlobals.MissileDampener = MissileDampener;
-            WaterGlobals.SurfaceSkinning = SurfaceSkinning;
-            WaterGlobals.SubmergedTankDampening = SubmergedTankDampening;
-            WaterGlobals.SubmergedTankDampeningYAddition = SubmergedTankDampeningYAddition;
-            WaterGlobals.SurfaceTankDampening = SurfaceTankDampening;
-            WaterGlobals.SurfaceTankDampeningYAddition = SurfaceTankDampeningYAddition;
-            WaterGlobals.RainWeightMultiplier = RainWeightMultiplier;
-            WaterGlobals.RainDrainMultiplier = RainDrainMultiplier;
-            WaterGlobals.FloodChangeClamp = FloodChangeClamp;
-            WaterGlobals.AbyssDepth = AbyssDepth;
-            WaterGlobals.LavaDampenMulti = LavaDampenMulti;
-            WaterGlobals.WheelWaterForceMultiplier = WheelWaterForceMultiplier;
-        }
-        private static void SetToStandard()
-        {
-            QPatch.ApplyClientSettings();
-            WaterGlobals.Density = ManWaterDefaults.Density;
-            WaterBlock.cachedFloatVal = ManWaterDefaults.Density * 5f;
-            WaterGlobals.FanJetMultiplier = ManWaterDefaults.FanJetMultiplier;
-            WaterGlobals.ResourceBuoyancyMultiplier = ManWaterDefaults.ResourceBuoyancyMultiplier;
-            WaterGlobals.BulletDampener = ManWaterDefaults.BulletDampener;
-            WaterGlobals.LaserFraction = ManWaterDefaults.LaserFraction;
-            WaterGlobals.MissileDampener = ManWaterDefaults.MissileDampener;
-            WaterGlobals.SurfaceSkinning = ManWaterDefaults.SurfaceSkinning;
-            WaterGlobals.SubmergedTankDampening = ManWaterDefaults.SubmergedTankDampening;
-            WaterGlobals.SubmergedTankDampeningYAddition = ManWaterDefaults.SubmergedTankDampeningYAddition;
-            WaterGlobals.SurfaceTankDampening = ManWaterDefaults.SurfaceTankDampening;
-            WaterGlobals.SurfaceTankDampeningYAddition = ManWaterDefaults.SurfaceTankDampeningYAddition;
-            WaterGlobals.RainWeightMultiplier = ManWaterDefaults.RainWeightMultiplier;
-            WaterGlobals.RainDrainMultiplier = ManWaterDefaults.RainDrainMultiplier;
-            WaterGlobals.FloodChangeClamp = ManWaterDefaults.FloodChangeClamp;
-            WaterGlobals.AbyssDepth = ManWaterDefaults.AbyssDepth;
-            WaterGlobals.LavaDampenMulti = ManWaterDefaults.LavaDampenMulti;
-            WaterGlobals.WheelWaterForceMultiplier = ManWaterDefaults.WheelWaterForceMultiplier;
-        }
+        private static float rainFlood = 0f;
 
         public static float FloodHeightMultiplier
         {
@@ -244,31 +79,268 @@ namespace WaterMod
         }
         public static float floodHeightMultiplier = 15f;
 
-        public static int SelectedLook = 0;
-
         /// <summary>
         /// Updates in relation to the server host.  Server host's value is updated by <c>Height</c>
         /// </summary>
         private static float NetHeightSmooth = 0f;
-        private static Mesh WaterPlane;
-        public static float waterAlpha = 0.725f;
-        public static float waterAlphaMain = 0.75f;
-        public static float waterAlphaRipple = 0.95f;
-        public static float waterSpeed = 3.75f;
-        public static float lavaSpeed = 0.25f;
-        public static float lavaAlpha = 0.95f;
 
-
-        private static void SetVisualWaterHeight(float height)
+        public static void Initiate()
         {
-            Vector3 pos = _inst.transform.position.SetY(height - 1024f);
-            _inst.transform.position = pos;
-            splashCol.position = pos;
-            foreach (var item in ActiveWaterTiles)
+            LegModExt.InsurePatches();
+            try
             {
-                item.Value.UpdateTileHeight(height);
+                DebugExtUtilities.AllowEnableDebugGUIMenu_KeypadEnter = true;
+
+                ManWorldTreadmill.inst.OnBeforeWorldOriginMove.Subscribe(WorldShift);
+                ManWorldTreadmill.inst.OnAfterWorldOriginMoved.Subscribe(WorldShiftEnd);
+                ManWorld.inst.TileManager.TileCreatedEvent.Subscribe(OnTileCreated);
+                ManWorld.inst.TileManager.TileDestroyedEvent.Subscribe(OnTileDestroyed);
+                ManWorld.inst.TileManager.TileStartPopulatingEvent.Subscribe(OnTilePopulated);
+                ManWorld.inst.TileManager.TileDepopulatedEvent.Subscribe(OnTileDepopulated);
+                ManGameMode.inst.ModeStartEvent.Subscribe(OnModeFinishedLoading);
+                ManUpdate.inst.AddAction(ManUpdate.Type.FixedUpdate, ManUpdate.Order.First, UpdateFixedMain, -9001);
+                ManUpdate.inst.AddAction(ManUpdate.Type.Update, ManUpdate.Order.Last, UpdateLateMain, 9001);
+
+                foreach (var item in FindObjectsOfType<Tank>())
+                    WaterTank.Insure(item);
+
+                //ManWorldTreadmill.inst.AddWorldSpaceObject(new WaterParticleHandler());
+            }
+            catch (Exception e)
+            {
+                DebugWater.LogException(e);
+                throw new Exception("Fail on init ManWater hooks", e);
+            }
+            try
+            {
+                if (WaterPlane == null)
+                {
+                    var tempGO = GameObject.CreatePrimitive(PrimitiveType.Plane);
+                    WaterPlane = Instantiate(tempGO.GetComponent<MeshFilter>().mesh);
+                    Destroy(tempGO);
+                }
+
+                CreateCameraFilters();
+                CreateTextures();
+                GetSounds();
+
+
+                if (PhysicsZone == null)
+                {
+                    // Construct the water the techs go in
+                    var folder = new GameObject("WaterObject");
+                    folder.transform.position = Vector3.zero;
+
+                    PhysicsZone = folder;
+
+                    /*
+                    GameObject Surface = tempGO;
+                    Destroy(Surface.GetComponent<MeshCollider>());
+                    Transform component = Surface.transform; component.parent = folder.transform;
+                    //Surface.GetComponent<Renderer>().material = defaultWater;
+                    //Surface.GetComponent<Renderer>().material = defaultLava;
+                    if (QPatch.TheWaterIsLava)
+                        Surface.GetComponent<Renderer>().material = defaultLava;
+                    else
+                        Surface.GetComponent<Renderer>().material = defaultWater;
+
+                    WaterBuoyancy.surface = Surface;
+
+                    component.localScale = new Vector3(2048f, 0.075f, 2048f);
+                    */
+
+                    GameObject PhysicsTrigger = new GameObject("PhysicsTrigger");
+                    Transform PhysicsTriggerTransform = PhysicsTrigger.transform;
+                    //PhysicsTriggerTransform.parent = folder.transform;
+                    //PhysicsTriggerTransform.localScale = new Vector3(2048f, 2048f, 2048f); PhysicsTriggerTransform.localPosition = new Vector3(0f, -1024f, 0f);
+                    PhysicsTriggerTransform.localScale = Vector3.one;
+                    PhysicsTriggerTransform.localPosition = new Vector3(0f, -1024f, 0f);
+                    //This is bigger to suppress that blind spot when the world does the treadmill thing.  Unknown performance impact.
+                    seaCol = PhysicsTrigger.AddComponent<BoxCollider>();
+                    seaCol.isTrigger = true;
+                    seaCol.size = new Vector3(physicsZoneSize, 2048f, physicsZoneSize);
+
+                    _inst = PhysicsTrigger.AddComponent<ManWater>();
+                }
+                ManUpdate.inst.AddAction(ManUpdate.Type.Update, ManUpdate.Order.Last, _inst.RemoteUpdate, 1009001);
+                ManUpdate.inst.AddAction(ManUpdate.Type.FixedUpdate, ManUpdate.Order.Last, _inst.RemoteFixedUpdate, 1009001);
+
+
+
+                if (splashCol == null)
+                {
+                    for (int i = 0; i < 32; i++)
+                    {
+                        if (i != waterLayer)    // reduces lag, A TON
+                            Physics.IgnoreLayerCollision(waterLayer, i, true);
+                    }
+                    //Physics.IgnoreLayerCollision(waterLayer, LayerMask.NameToLayer("Tank"), false);
+                    GameObject PhysicsCollider = new GameObject("WaterCollider");
+                    PhysicsCollider.layer = waterLayer;
+                    Transform PhysicsColliderTransform = PhysicsCollider.transform;
+                    PhysicsColliderTransform.parent = PhysicsZone.transform;
+                    PhysicsColliderTransform.localScale = Vector3.one;
+                    PhysicsColliderTransform.localPosition = new Vector3(0f, -1024f, 0f);
+                    //This is bigger to suppress that blind spot when the world does the treadmill thing.  Unknown performance impact.
+                    var boxCol = PhysicsCollider.AddComponent<BoxCollider>();
+                    boxCol.size = new Vector3(physicsZoneSize, 2048f, physicsZoneSize);
+
+                    splashCol = PhysicsCollider.transform;
+                }
+                PhysicsZone.SetActive(true);
+
+                if (_inst.waterGUI == null)
+                {
+                    _inst.waterGUI = new GameObject().AddComponent<WaterGUI>();
+                    _inst.waterGUI.gameObject.SetActive(false);
+                }
+
+                ManHUD.inst.OnExpandHUDElementEvent.Subscribe(_inst.TryFix);
+                ManHUD.inst.OnShowHUDElementEvent.Subscribe(_inst.TryFix);
+
+
+                DebugWater.Log("Water Mod: Ready!");
+
+            }
+            catch (Exception e)
+            {
+                DebugWater.LogException(e);
+                throw new Exception("Fail on init ManWater manager", e);
+            }
+            try
+            {
+                WaterParticleHandler.Initialize();
+                SurfacePool.Initiate();
+            }
+            catch (Exception e)
+            {
+                DebugWater.LogException(e);
+                throw new Exception("Fail on init WaterParticleHandler or SurfacePool", e);
             }
         }
+
+        private static void DeInitiate()
+        {
+            try
+            {
+                ManHUD.inst.OnExpandHUDElementEvent.Unsubscribe(_inst.TryFix);
+                ManHUD.inst.OnShowHUDElementEvent.Unsubscribe(_inst.TryFix);
+            }
+            catch (Exception e)
+            {
+                DebugWater.Log("Fail on deinit fixer hooks - " + e);
+            }
+            PhysicsZone?.SetActive(false);
+            try
+            {
+                if (_inst != null)
+                {
+                    ManUpdate.inst.RemoveAction(ManUpdate.Type.Update, ManUpdate.Order.Last, _inst.RemoteUpdate);
+                    ManUpdate.inst.RemoveAction(ManUpdate.Type.FixedUpdate, ManUpdate.Order.Last, _inst.RemoteFixedUpdate);
+                }
+            }
+            catch (Exception e)
+            {
+                DebugWater.Log("Fail on deinit ManWater manager hooks - " + e);
+            }
+            try
+            {
+                ManWorldTreadmill.inst.OnBeforeWorldOriginMove.Unsubscribe(WorldShift);
+                ManWorldTreadmill.inst.OnAfterWorldOriginMoved.Unsubscribe(WorldShiftEnd);
+                ManWorld.inst.TileManager.TileCreatedEvent.Unsubscribe(OnTileCreated);
+                ManWorld.inst.TileManager.TileDestroyedEvent.Unsubscribe(OnTileDestroyed);
+                ManWorld.inst.TileManager.TileStartPopulatingEvent.Unsubscribe(OnTilePopulated);
+                ManWorld.inst.TileManager.TileDepopulatedEvent.Unsubscribe(OnTileDepopulated);
+                ManGameMode.inst.ModeStartEvent.Unsubscribe(OnModeFinishedLoading);
+                ManUpdate.inst.RemoveAction(ManUpdate.Type.FixedUpdate, ManUpdate.Order.First, UpdateFixedMain);
+                ManUpdate.inst.RemoveAction(ManUpdate.Type.Update, ManUpdate.Order.Last, UpdateLateMain);
+                //ManWorldTreadmill.inst.AddWorldSpaceObject(new WaterParticleHandler());
+            }
+            catch (Exception e)
+            {
+                DebugWater.Log("Fail on deinit ManWater hooks - " + e);
+            }
+        }
+
+
+        public static bool IsActive = true;
+        public static void SetState()
+        {
+            _inst.gameObject.SetActive(IsActive);
+            UpdateAllTiles();
+            if (UpdateHeightCalc())
+                ApplyHeightCalc(heightCalc);
+            if (!IsActive)
+                ManTimeOfDayExt.RemoveState("WM");
+        }
+
+        /// <summary>
+        /// Must be called each time AFTER the water height is altered!
+        /// Submit using ApplyHeightCalc()
+        /// </summary>
+        internal static bool UpdateHeightCalc()
+        {
+            bool delta = false;
+            float heightCalcNew;
+            if (ManGameMode.inst.IsCurrentModeMultiplayer())
+            {   // Follow the server, and ignore most local settings (unless we are the host)
+                UpdateNetworkedWaterIfNeeded();
+                if (ManGameMode.inst.IsCurrent<ModeDeathmatch>())
+                {   // Disable water for Deathmatch.  There is no aquatic deathmatch -yet-
+                    heightCalcNew = -1000f;
+                    if (!heightCalcNew.Approximately(heightCalc, 0.1f))
+                    {
+                        heightCalc = heightCalcNew;
+                        delta = true;
+                    }
+                }
+                else
+                {   // Copy water height from the host's values in MP
+                    heightCalcNew = NetHeightSmooth;
+                    if (!heightCalcNew.Approximately(heightCalc, 0.1f))
+                    {
+                        heightCalc = heightCalcNew;
+                        delta = true;
+                    }
+                }
+            }
+            else
+            {   // Update to local client water height
+                if (IsActive)
+                {   // Calculate the water and submit it
+                    heightCalcNew = Height + (rainFlood * floodHeightMultiplier);
+                    if (!heightCalcNew.Approximately(heightCalc, 0.1f))
+                    {
+                        heightCalc = heightCalcNew;
+                        delta = true;
+                    }
+                }
+                else
+                {   // Turn off the water and move it super far away
+                    heightCalcNew = -1024f;
+                    if (!heightCalcNew.Approximately(heightCalc, 0.1f))
+                    {
+                        heightCalc = heightCalcNew;
+                        delta = true;
+                    }
+                }
+            }
+            return delta;
+        }
+        internal static void ApplyHeightCalc(float value)
+        {
+            heightCalcSet = value;
+            UpdateBlockSleepAndVisualHeights();
+        }
+        internal static void UpdateBlockSleepAndVisualHeights()
+        {
+            minBlockSleepHeight = Height + BlockSleepHeightOffset;
+            SetVisualWaterHeight(HeightCalc);
+        }
+
+
+
+
         public static void OnTileCreated(WorldTile tile)
         {
             try
@@ -311,11 +383,6 @@ namespace WaterMod
         {
         }
 
-        public static void OnDayStateChanged(Mode unused)
-        {
-
-        }
-
         public static void OnModeFinishedLoading(Mode unused)
         {
             try
@@ -334,9 +401,190 @@ namespace WaterMod
             }
         }
 
+        public void TryFix(UIHUDElement ele)
+        {
+            try
+            {
+                if (ele.HudElementType == ManHUD.HUDElementType.TechLoader)
+                {
+                    UIHUDElement tech2 = ManHUD.inst.GetHudElement(ManHUD.HUDElementType.TechLoader);
+                    //Utilities.LogGameObjectHierachy(tech2.gameObject);
+                    RectTransform RT = tech2.GetComponent<RectTransform>();
+                    RT.anchoredPosition = Vector2.zero;//new Vector2(-Display.main.renderingWidth / 8f, Display.main.renderingHeight / 4f); 
+                }
+            }
+            catch { }
+        }
+
+        internal void Save()
+        {
+            if (QPatch.IsOptionsAvailable)
+            {
+                try
+                {
+                    Save_Internal();
+                }
+                catch { }
+            }
+        }
+        private void Save_Internal()
+        {
+            try
+            {
+                SafeInit.Save();
+            }
+            catch { }
+        }
+
+        internal void SetLavaValue(bool state)
+        {
+            if (QPatch.IsOptionsAvailable)
+            {
+                try
+                {
+                    SetLavaValue_Internal(state);
+                }
+                catch { }
+            }
+        }
+        private void SetLavaValue_Internal(bool state)
+        {
+            try
+            {
+                SafeInit.makeDeath.Value = state;
+            }
+            catch { }
+        }
+        internal void TrySetWaterHeightSlider(float height)
+        {
+            if (QPatch.IsOptionsAvailable)
+            {
+                try
+                {
+                    TrySetWaterHeightSlider_Internal(height);
+                }
+                catch { }
+            }
+        }
+        private void TrySetWaterHeightSlider_Internal(float height)
+        {
+            try
+            {
+                SafeInit.TrySetWaterHeightSlider(height);
+            }
+            catch { }
+        }
+
+
+        public static void UpdateNetworkedWaterIfNeeded()
+        {
+            try
+            {
+                if (ManNetwork.inst.IsMultiplayer() && ManNetwork.IsHost)
+                {
+                    if (NetworkHandler.ServerWaterHeight != Height)
+                    {
+                        NetworkHandler.ServerWaterHeight = Height;
+                        //ManNetwork.inst.SendToAllClients(WaterChange, new WaterChangeMessage() { Height = ServerWaterHeight }, ManNetwork.inst.MyPlayer.netId);
+                        //Console.WriteLine("Sent new water height, changed to " + ServerWaterHeight.ToString());
+                    }
+                    if (NetworkHandler.ServerLava != QPatch.theWaterIsLava)
+                        NetworkHandler.ServerLava = QPatch.theWaterIsLava;
+                }
+            }
+            catch { }
+        }
+
+
+
+
+        // ------------------------  VISUALS  ------------------------
+
+        //setup in Initiate
+        public static float Brightener = 0.65f;
+        public static Color waterColor = new Color(0.125f, 0.25f, 0.65f, 0.875f); //new Color(0.125f, 0.35f, 0.65f, 0.875f);
+        public static Color waterColorBright = new Color(Brightener, Brightener, Brightener, 0) * (new Color(1, 1, 1, 1) - waterColor) + waterColor - new Color(0, 0, 0, 0.5f);
+        public static Color underWaterColor = new Color(0, 0.1704828f, 1f, 0.65f);
+        public static Gradient underWaterSkyColors = new Gradient()
+        {
+            alphaKeys = new GradientAlphaKey[]
+            {
+                new GradientAlphaKey(1f, 0f),
+                new GradientAlphaKey(1f, 1f)
+            },
+
+            colorKeys = new GradientColorKey[]
+            {
+                new GradientColorKey(underWaterColor, 0f),
+                new GradientColorKey(underWaterColor, 1f),
+            }
+        };
+
+        public static Color lavaColor = new Color(0.97f, 0.41f, 0.024f, 0.9f);
+        public static Color lavaColorBright = new Color(Brightener, Brightener, Brightener, 0) * (new Color(1, 1, 1, 1) - lavaColor) + lavaColor - new Color(0, 0, 0, 0.5f);
+        public static Color underLavaColor = new Color(0.97f, 0.41f, 0.024f, 0.65f);
+        public static Gradient underLavaSkyColors = new Gradient()
+        {
+            alphaKeys = new GradientAlphaKey[]
+            {
+                new GradientAlphaKey(1f, 0f),
+                new GradientAlphaKey(1f, 1f)
+            },
+
+            colorKeys = new GradientColorKey[]
+            {
+                new GradientColorKey(underLavaColor, 0f),
+                new GradientColorKey(underLavaColor, 1f),
+            }
+        };
+
+        private static Color spoopy = new Color(0.005f, 0.005f, 0.025f, 1f);
+
+        public static Texture2D CameraFilter;
+        public static Texture2D CameraFilterLava;
+        public static Texture2D WaterTex;
+        public static Texture2D LavaTex;
+        public static void CreateCameraFilters()
+        {
+            if (CameraFilter != null)
+                return;
+            // WATER BASIC
+            CameraFilter = new Texture2D(32, 32);
+            for (int i = 0; i < 32; i++)
+            {
+                for (int j = 0; j < 32; j++)
+                {
+                    CameraFilter.SetPixel(i, j, new Color(
+                        0.75f - (Mathf.Abs(i - 16f) + Mathf.Abs(j - 16f)) * 0.015f,
+                        0.8f - (Mathf.Abs(i - 16f) + Mathf.Abs(j - 16f)) * 0.01f,
+                        0.9f - (Mathf.Abs(i - 16f) + Mathf.Abs(j - 16f)) * 0.02f,
+                        0.28f));
+                }
+            }
+            CameraFilter.Apply();
+            DebugWater.Log("Water Mod: new CameraFilter for water effect");
+
+            // LAVA BASIC
+            CameraFilterLava = new Texture2D(32, 32);
+            for (int i = 0; i < 32; i++)
+            {
+                for (int j = 0; j < 32; j++)
+                {
+                    CameraFilterLava.SetPixel(i, j, new Color(
+                        0.97f - (Mathf.Abs(i - 16f) + Mathf.Abs(j - 16f)) * 0.015f,
+                        0.41f - (Mathf.Abs(i - 16f) + Mathf.Abs(j - 16f)) * 0.01f,
+                        0.024f - (Mathf.Abs(i - 16f) + Mathf.Abs(j - 16f)) * 0.005f,
+                        1f));//0.28f
+                }
+            }
+            CameraFilterLava.Apply();
+        }
+
 
         private static Vector3 posPrev;
         private static float distDelta = ManWorld.inst.TileSize / 5;
+        private static Dictionary<IntVector2, WaterTile> ActiveWaterTiles = new Dictionary<IntVector2, WaterTile>();
+
         private static void UpdateAllTilesLOD(IntVector2 coord, Vector3 PosScene)
         {
             if (!posPrev.Approximately(PosScene, distDelta))
@@ -411,16 +659,12 @@ namespace WaterMod
         private static void UpdateAllTiles()
         {
             foreach (var item in ActiveWaterTiles)
-            {
                 item.Value.UpdateLook();
-            }
         }
         private static void ClearAllTiles()
         {
             foreach (var item in ActiveWaterTiles)
-            {
                 item.Value.Recycle();
-            }
             ActiveWaterTiles.Clear();
         }
         private static void ResetAllTiles()
@@ -431,42 +675,25 @@ namespace WaterMod
         }
 
 
-        public static void CreateCameraFilters()
+        private static Mesh WaterPlane;
+        public static float waterAlpha = 0.725f;
+        public static float waterAlphaMain = 0.75f;
+        public static float waterAlphaRipple = 0.95f;
+        public static float waterSpeed = 3.75f;
+        public static float lavaSpeed = 0.25f;
+        public static float lavaAlpha = 0.95f;
+        private static void SetVisualWaterHeight(float height)
         {
-            // WATER BASIC
-            CameraFilter = new Texture2D(32, 32);
-            for (int i = 0; i < 32; i++)
+            Vector3 pos = _inst.transform.position.SetY(height - 1024f);
+            _inst.transform.position = pos;
+            splashCol.position = pos;
+            foreach (var item in ActiveWaterTiles)
             {
-                for (int j = 0; j < 32; j++)
-                {
-                    CameraFilter.SetPixel(i, j, new Color(
-                        0.75f - (Mathf.Abs(i - 16f) + Mathf.Abs(j - 16f)) * 0.015f,
-                        0.8f - (Mathf.Abs(i - 16f) + Mathf.Abs(j - 16f)) * 0.01f,
-                        0.9f - (Mathf.Abs(i - 16f) + Mathf.Abs(j - 16f)) * 0.02f,
-                        0.28f));
-                }
+                item.Value.UpdateTileHeight(height);
             }
-            CameraFilter.Apply();
-            DebugWater.Log("Water Mod: new CameraFilter for water effect");
-
-            // LAVA BASIC
-            CameraFilterLava = new Texture2D(32, 32);
-            for (int i = 0; i < 32; i++)
-            {
-                for (int j = 0; j < 32; j++)
-                {
-                    CameraFilterLava.SetPixel(i, j, new Color(
-                        0.97f - (Mathf.Abs(i - 16f) + Mathf.Abs(j - 16f)) * 0.015f,
-                        0.41f - (Mathf.Abs(i - 16f) + Mathf.Abs(j - 16f)) * 0.01f,
-                        0.024f - (Mathf.Abs(i - 16f) + Mathf.Abs(j - 16f)) * 0.005f,
-                        1f));//0.28f
-                }
-            }
-            CameraFilterLava.Apply();
         }
 
 
-        //setup in Initiate
         internal static Material defaultWater;
         internal static Material defaultLava;
         internal static Material FancyLava;
@@ -500,8 +727,8 @@ namespace WaterMod
         }
         public static void CreateTextures()
         {
-            TerraTechETCUtil.DebugExtUtilities.AllowEnableDebugGUIMenu_KeypadEnter = true;
-
+            if (WaterTex != null)
+                return;
             Shader shader = InsureGetShader("Legacy Shaders/Particles/Additive");//InsureGetShader("Legacy Shaders/Transparent/Diffuse")
             //Shader shader = InsureGetShader("Standard");
             WaterTex = new Texture2D(2, 2);
@@ -545,7 +772,7 @@ namespace WaterMod
             matsMain.Add(defaultWater);
 
             DebugWater.Log("Water Mod: new Water plane");
-            
+
 
             //shader = InsureGetShader("Legacy Shaders/Particles/Additive");
             LavaTex = new Texture2D(2, 2);
@@ -608,7 +835,7 @@ namespace WaterMod
             fancyWavelessWater.SetColor("_BaseColor_copy", waterColor.SetAlpha(fancyWavelessWater.GetColor("_BaseColor_copy").a * waterAlphaMain));
             fancyWavelessWater.SetColor("_RippleColor_copy", waterColorBright.SetAlpha(fancyWavelessWater.GetColor("_RippleColor_copy").a * waterAlphaRipple));
             fancyWavelessWater.SetColor("_EmissionColor", waterEmissionColor);
-            
+
             fancyWavelessWater.SetFloat("_Metallic", 0.5f);
             fancyWavelessWater.SetFloat("_Glossiness", 0.9f);
             fancyWavelessWater.SetFloat("_Opacity", waterAlpha);
@@ -632,7 +859,7 @@ namespace WaterMod
             matsMain.Add(FancyWavelessLava);
 
 
-            waterLooks.Add(new WaterLook(0.05f, "Fancy (waveless)", WaterPlane, fancyWavelessWater, 
+            waterLooks.Add(new WaterLook(0.05f, "Fancy (waveless)", WaterPlane, fancyWavelessWater,
                 FancyWavelessLava, 1, 256));
 
             // WATER FANCY (FULL)
@@ -699,6 +926,183 @@ namespace WaterMod
             }
         }
 
+        internal static bool CameraSubmerged = false;
+
+        //private static Color spoopy = new Color(0, 0, 0, 1f);
+        private static float depthMultiUnclamped = 0;
+        private static float depthMulti = 0;
+        private static FieldInfo m_Sky = typeof(ManTimeOfDay).GetField("m_Sky", BindingFlags.NonPublic | BindingFlags.Instance);
+
+        public static Color SetDarkness(Color inColor)
+        {
+            var sky = m_Sky.GetValue(ManTimeOfDay.inst) as TOD_Sky;
+
+            RenderSettings.fog = true;
+            RenderSettings.fogMode = FogMode.ExponentialSquared;
+            RenderSettings.fogStartDistance = 0f;
+            RenderSettings.fogEndDistance = 40f;
+            sky.m_UseTerraTechBiomeData = true;
+            sky.Fog.Mode = TOD_FogType.None;
+            sky.Ambient.Mode = TOD_AmbientType.None;
+
+            Color abyssColor;
+            if (QPatch.TheWaterIsLava)
+            {
+                abyssColor = underLavaColor * depthMulti * inColor;
+                abyssColor.a = 1f;
+                //RenderSettings.sun.enabled = false;
+                RenderSettings.fogDensity = 420f;
+                RenderSettings.fogColor = abyssColor;
+                RenderSettings.ambientLight = abyssColor;
+                RenderSettings.ambientGroundColor = abyssColor;
+                RenderSettings.ambientIntensity = 1 + depthMulti;
+                var keys = underLavaSkyColors.colorKeys;
+                keys[0].color = keys[1].color = abyssColor;
+                underLavaSkyColors.colorKeys = keys;
+
+                sky.Day.AmbientColor = sky.Night.AmbientColor = underLavaSkyColors;
+                sky.Day.FogColor = sky.Night.FogColor = sky.Day.LightColor = sky.Night.LightColor = sky.Day.SkyColor = sky.Night.SkyColor = underLavaSkyColors;
+            }
+            else
+            {
+                Color TODColorDelta = ManTimeOfDay.inst.NightTime ? new Color(0.525f, 0.525f, 0.525f, 1) : new Color(1, 1, 1, 1);
+                abyssColor = underWaterColor * TODColorDelta * depthMulti * inColor;
+                abyssColor.a = 1f;
+                float depthWatch = Mathf.Clamp01((depthMultiUnclamped / 2) - (ManTimeOfDay.inst.NightTime ? 0f : 0.5f));
+                Color darker = (spoopy * depthWatch) + (abyssColor * (1f - depthWatch));
+                //RenderSettings.sun.enabled = false;
+                RenderSettings.fogDensity = 160f;
+                RenderSettings.fogColor = darker;
+                RenderSettings.ambientLight = darker;
+                RenderSettings.ambientGroundColor = darker;
+                RenderSettings.ambientIntensity = 1 + depthMulti;
+                var keys = underWaterSkyColors.colorKeys;
+                keys[0].color = keys[1].color = darker;
+                underWaterSkyColors.colorKeys = keys;
+
+                sky.Day.AmbientColor = sky.Night.AmbientColor = underWaterSkyColors;
+                sky.Day.FogColor = sky.Night.FogColor = sky.Day.LightColor = sky.Night.LightColor = sky.Day.SkyColor = sky.Night.SkyColor = underWaterSkyColors;
+            }
+            return abyssColor;
+        }
+        public static void KeepDarkness(DayNightColours dayColours, DayNightColours nightColours)
+        {// INSIDE the water
+            Color abyssColor;
+            Color abyssColorLite;
+            ManTimeOfDay.inst.BlendImmediately();
+            if (QPatch.TheWaterIsLava)
+            {
+                abyssColor = underLavaColor * depthMulti;
+                abyssColor.a = 1f;
+                dayColours.DustVFXColour *= abyssColor;
+                nightColours.DustVFXColour *= abyssColor;
+                dayColours.LightColour *= abyssColor;
+                nightColours.LightColour *= abyssColor;
+                dayColours.AmbientColour *= abyssColor;
+                nightColours.AmbientColour *= abyssColor;
+                dayColours.RayColour *= abyssColor;
+                nightColours.RayColour *= abyssColor;
+                dayColours.FogColour *= abyssColor;
+                nightColours.FogColour *= abyssColor;
+                dayColours.SkyColour *= abyssColor;
+                nightColours.SkyColour *= abyssColor;
+                dayColours.SunMoonColour *= abyssColor;
+                nightColours.SunMoonColour *= abyssColor;
+            }
+            else
+            {
+                Color TODColorDelta = ManTimeOfDay.inst.NightTime ? new Color(0.525f, 0.525f, 0.525f, 1) : new Color(1, 1, 1, 1);
+                abyssColor = underWaterColor * TODColorDelta * depthMulti;
+                abyssColor.a = 1f;
+                abyssColorLite = abyssColor * 0.65f;
+                abyssColorLite.a = 0.6f;
+                float depthWatch = Mathf.Clamp01((depthMultiUnclamped / 2) - (ManTimeOfDay.inst.NightTime ? 0f : 0.5f));
+                Color darker = (spoopy * depthWatch) + (abyssColor * (1f - depthWatch));
+                Color darkerSome = (spoopy * depthWatch) + (abyssColorLite * (1f - depthWatch));
+                dayColours.DustVFXColour *= darker;
+                nightColours.DustVFXColour *= darker;
+                dayColours.LightColour *= darker;
+                nightColours.LightColour *= darker;
+                dayColours.AmbientColour *= darkerSome;
+                nightColours.AmbientColour *= darkerSome;
+                dayColours.RayColour *= darker;
+                nightColours.RayColour *= darker;
+                dayColours.FogColour *= darker;
+                nightColours.FogColour *= darker;
+                dayColours.SkyColour *= darkerSome;
+                nightColours.SkyColour *= darkerSome;
+                dayColours.SunMoonColour *= darkerSome;
+                nightColours.SunMoonColour *= darkerSome;
+            }
+        }
+        public static readonly ManTimeOfDayExt.TOD_Ordering order = new ManTimeOfDayExt.TOD_Ordering(
+            "WM", 0, SetDarkness, KeepDarkness);
+        public static void UpdateDarkness()
+        {// INSIDE the water
+            if (!CameraSubmerged)
+            {
+                CameraSubmerged = true;
+                UpdateAllTiles();
+            }
+            ManTimeOfDayExt.SetState(order);
+        }
+
+        private static float defaultFog = float.MinValue;
+        private static bool CamSubmergedFog = false;
+        internal static void AdjustFog()
+        {
+            if (UseDynamicFog)
+            {
+                if (defaultFog == float.MinValue)
+                    defaultFog = CameraManager.inst.Fog.globalDensity;
+                float depthEffect = depthMulti + 2.5f;
+                if (depthEffect > 1)
+                {
+                    CameraManager.inst.Fog.startDistance = defaultFog / depthEffect;
+                    CamSubmergedFog = true;
+                }
+                else
+                {
+                    if (CamSubmergedFog)
+                        CameraManager.inst.SetDrawDist01(CameraManager.inst.DrawDist01);
+                    CamSubmergedFog = false;
+                }
+                /*
+                if (UseDynamicFog)
+                    CameraManager.inst.Fog.globalDensity = defaultFog * (depthMulti + (CameraSubmerged ? 2.5f : 1));
+                else
+                    CameraManager.inst.Fog.globalDensity = defaultFog;
+                //*/
+            }
+        }
+
+
+        public static List<WaterLook> waterLooks = new List<WaterLook>();
+        public static int SelectedLook = 0;
+        public static void UpdateLook()
+        {
+            try
+            {
+                foreach (var item in ActiveWaterTiles)
+                {
+                    item.Value.UpdateLook();
+                }
+                SurfacePool.MaxGrow = waterLooks[SelectedLook].ParticleLimits;
+                WaterParticleHandler.UpdateSplash();
+                WaterParticleHandler.UpdateSurface();
+                WaterParticleHandler.UpdateBubbles();
+            }
+            catch (Exception e)
+            {
+                DebugWater.Log(e);
+            }
+        }
+
+
+
+
+        // ------------------------  AUDIO  ------------------------
+
         internal static int blockSFXCount = 0;
         internal static bool attemptedSounds = false;
         internal static AudioInst SplashSmall;
@@ -746,360 +1150,65 @@ namespace WaterMod
                 throw new NullReferenceException("Could not fetch WaterNoises");
         }
 
-        private static Dictionary<IntVector2, WaterTile> ActiveWaterTiles = new Dictionary<IntVector2, WaterTile>();
-
-
-        public static void UpdateFixedMain() => WaterFixedUpdate.Send();
-        public static void UpdateLateMain()
-        {
-            WaterLateUpdate.Send();
-            /*
-            if (WorldDidMove)
-                WorldDidMove = false;
-            else*/
-            if (WorldMove)
-                WorldMove = false;
-        }
-        public static void Initiate()
-        {
-            try
-            {
-                ManWorldTreadmill.inst.OnBeforeWorldOriginMove.Subscribe(WorldShift);
-                ManWorldTreadmill.inst.OnAfterWorldOriginMoved.Subscribe(WorldShiftEnd);
-                //*
-                ManWorld.inst.TileManager.TileCreatedEvent.Subscribe(OnTileCreated);
-                ManWorld.inst.TileManager.TileDestroyedEvent.Subscribe(OnTileDestroyed);
-                ManWorld.inst.TileManager.TileStartPopulatingEvent.Subscribe(OnTilePopulated);
-                ManWorld.inst.TileManager.TileDepopulatedEvent.Subscribe(OnTileDepopulated);
-                // */
-                ManGameMode.inst.ModeStartEvent.Subscribe(OnModeFinishedLoading);
-                ManUpdate.inst.AddAction(ManUpdate.Type.FixedUpdate, ManUpdate.Order.First, UpdateFixedMain, -9001);
-                ManUpdate.inst.AddAction(ManUpdate.Type.Update, ManUpdate.Order.Last, UpdateLateMain, 9001);
-                foreach (var item in FindObjectsOfType<Tank>())
-                {
-                    WaterTank.Insure(item);
-                }
-                //ManWorldTreadmill.inst.AddWorldSpaceObject(new WaterParticleHandler());
-            }
-            catch (Exception e)
-            {
-                DebugWater.LogException(e);
-                throw new Exception("Fail on init ManWater hooks", e);
-            }
-            try
-            {
-                var tempGO = GameObject.CreatePrimitive(PrimitiveType.Plane);
-                WaterPlane = Instantiate(tempGO.GetComponent<MeshFilter>().mesh);
-                Destroy(tempGO);
-                CreateCameraFilters();
-                CreateTextures();
-                GetSounds();
 
 
 
-                // Construct the water the techs go in
-                var folder = new GameObject("WaterObject");
-                folder.transform.position = Vector3.zero;
+        // ------------------------  PHYSICS  ------------------------
 
-                PhysicsZone = folder;
-
-                /*
-                GameObject Surface = tempGO;
-                Destroy(Surface.GetComponent<MeshCollider>());
-                Transform component = Surface.transform; component.parent = folder.transform;
-                //Surface.GetComponent<Renderer>().material = defaultWater;
-                //Surface.GetComponent<Renderer>().material = defaultLava;
-                if (QPatch.TheWaterIsLava)
-                    Surface.GetComponent<Renderer>().material = defaultLava;
-                else
-                    Surface.GetComponent<Renderer>().material = defaultWater;
-
-                WaterBuoyancy.surface = Surface;
-
-                component.localScale = new Vector3(2048f, 0.075f, 2048f);
-                */
-
-                GameObject PhysicsTrigger = new GameObject("PhysicsTrigger");
-                Transform PhysicsTriggerTransform = PhysicsTrigger.transform;
-                //PhysicsTriggerTransform.parent = folder.transform;
-                //PhysicsTriggerTransform.localScale = new Vector3(2048f, 2048f, 2048f); PhysicsTriggerTransform.localPosition = new Vector3(0f, -1024f, 0f);
-                PhysicsTriggerTransform.localScale = Vector3.one; 
-                PhysicsTriggerTransform.localPosition = new Vector3(0f, -1024f, 0f);
-                //This is bigger to suppress that blind spot when the world does the treadmill thing.  Unknown performance impact.
-                seaCol = PhysicsTrigger.AddComponent<BoxCollider>();
-                seaCol.isTrigger = true;
-                seaCol.size = new Vector3(physicsZoneSize, 2048f, physicsZoneSize);
-
-                _inst = PhysicsTrigger.AddComponent<ManWater>();
-                ManUpdate.inst.AddAction(ManUpdate.Type.Update, ManUpdate.Order.Last, _inst.RemoteUpdate, 1009001);
-                ManUpdate.inst.AddAction(ManUpdate.Type.FixedUpdate, ManUpdate.Order.Last, _inst.RemoteFixedUpdate, 1009001);
-
-
-                for (int i = 0; i < 32; i++)
-                {
-                    if (i != waterLayer)
-                    {
-                        Physics.IgnoreLayerCollision(waterLayer, i, true);
-                    }
-                }
-                //Physics.IgnoreLayerCollision(waterLayer, LayerMask.NameToLayer("Tank"), false);
-
-
-                GameObject PhysicsCollider = new GameObject("WaterCollider");
-                PhysicsCollider.layer = waterLayer;
-                Transform PhysicsColliderTransform = PhysicsCollider.transform;
-                PhysicsColliderTransform.parent = folder.transform;
-                PhysicsColliderTransform.localScale = Vector3.one;
-                PhysicsColliderTransform.localPosition = new Vector3(0f, -1024f, 0f);
-                //This is bigger to suppress that blind spot when the world does the treadmill thing.  Unknown performance impact.
-                var boxCol = PhysicsCollider.AddComponent<BoxCollider>();
-                boxCol.size = new Vector3(physicsZoneSize, 2048f, physicsZoneSize);
-
-                splashCol = PhysicsCollider.transform;
-
-                
-                _inst.waterGUI = new GameObject().AddComponent<WaterGUI>();
-                _inst.waterGUI.gameObject.SetActive(false);
-
-                ManHUD.inst.OnExpandHUDElementEvent.Subscribe(_inst.TryFix);
-                ManHUD.inst.OnShowHUDElementEvent.Subscribe(_inst.TryFix);
-
-                DebugWater.Log("Water Mod: Ready!");
-
-            }
-            catch (Exception e)
-            {
-                DebugWater.LogException(e);
-                throw new Exception("Fail on init ManWater", e);
-            }
-            try
-            {
-                WaterParticleHandler.Initialize();
-                SurfacePool.Initiate();
-            }
-            catch (Exception e)
-            {
-                DebugWater.LogException(e);
-                throw new Exception("Fail on init WaterParticleHandler or SurfacePool", e);
-            }
-        }
-        public void TryFix(UIHUDElement ele)
-        {
-            try
-            {
-                if (ele.HudElementType == ManHUD.HUDElementType.TechLoader)
-                {
-                    UIHUDElement tech2 = ManHUD.inst.GetHudElement(ManHUD.HUDElementType.TechLoader);
-                    //Utilities.LogGameObjectHierachy(tech2.gameObject);
-                    RectTransform RT = tech2.GetComponent<RectTransform>();
-                    RT.anchoredPosition = Vector2.zero;//new Vector2(-Display.main.renderingWidth / 8f, Display.main.renderingHeight / 4f); 
-                }
-            }
-            catch { }
-        }
-
-        internal void Save()
-        {
-            try
-            {
-                SafeInit.Save();
-            }
-            catch { }
-        }
-        internal void SetLavaValue(bool state)
-        {
-            try
-            {
-                SafeInit.makeDeath.Value = state;
-            }
-            catch { }
-        }
-        internal void TrySetWaterHeightSlider(float height)
-        {
-            try
-            {
-                SafeInit.TrySetWaterHeightSlider(height);
-            }
-            catch { }
-        }
-
-        /// <summary>
-        /// The final applied value of the water height before it is sent to other systems
-        /// </summary>
-        public static float HeightCalc => heightCalcSet;
-        /// <summary>
-        /// The ACTUAL applied value of the water height based on the client's values
-        /// </summary>
-        public static float heightCalcSet = -50;//-25;
-        /// <summary>
-        /// Our local client's water height value to be suggested to.
-        /// <para> Will deviate based on rainfall (<c>rainFlood</c>) and be overriden by the server host if we aren't the main host</para>
-        /// </summary>
-        public static float heightCalc = -50;//-25;
-
-        public static float RainFlood {
-            get { return rainFlood; }
-            set 
-            {
-                rainFlood = value;
-                if (UpdateHeightCalc())
-                    ApplyHeightCalc(heightCalc);
-            }
-        }
-
-        private static float rainFlood = 0f;
-
-        public byte heartBeat;
-        public static ManWater _inst;
-        public static BoxCollider seaCol;
-        public static Transform splashCol;
-        public static GameObject PhysicsZone;
-        public static bool _WeatherMod;
-        private bool ShowGUI = false;
-        private WaterGUI waterGUI;
-        //public static GameObject surface;
-        internal static bool WorldMove = false;
-        internal static bool WorldDidMove = false;
-
-        internal class WaterGUI : MonoBehaviour
-        {
-            private Rect Window = new Rect(0, 0, 140, 75);
-
-            private void OnGUI()
-            {
-                try
-                {
-                    Window = GUI.Window(29587115, Window, GUIWindow, "Water Settings");
-                }
-                catch { }
-            }
-
-            public void DelayedSave()
-            {
-                try
-                {
-                    _inst.Save();
-                }
-                catch { }
-            }
-            private void GUIWindow(int ID)
-            {
-                GUILayout.Label("Height: " + Height.ToString());
-                int height = Mathf.RoundToInt(GUILayout.HorizontalSlider(Mathf.RoundToInt(Height / 5), -15f, 20f)) * 5;
-                if (Height != height)
-                {
-                    CancelInvoke("DelayedSave");
-                    Height = height;
-                    Invoke("DelayedSave", 1f);
-
-                    try
-                    {
-                        _inst.TrySetWaterHeightSlider(height);
-                    }
-                    catch { }
-                }
-
-                GUI.DragWindow();
-            }
-        }
-
-        public static void UpdateNetworkedWaterIfNeeded()
-        {
-            try
-            {
-                if (ManNetwork.inst.IsMultiplayer() && ManNetwork.IsHost)
-                {
-                    if (NetworkHandler.ServerWaterHeight != Height)
-                    {
-                        NetworkHandler.ServerWaterHeight = Height;
-                        //ManNetwork.inst.SendToAllClients(WaterChange, new WaterChangeMessage() { Height = ServerWaterHeight }, ManNetwork.inst.MyPlayer.netId);
-                        //Console.WriteLine("Sent new water height, changed to " + ServerWaterHeight.ToString());
-                    }
-                    if (NetworkHandler.ServerLava != QPatch.theWaterIsLava)
-                        NetworkHandler.ServerLava = QPatch.theWaterIsLava;
-                }
-            }
-            catch { }
-        }
-
-        public static bool IsActive = true;
-
-        public static void SetState()
-        {
-            _inst.gameObject.SetActive(IsActive);
-            UpdateAllTiles();
-            if (UpdateHeightCalc())
-                ApplyHeightCalc(heightCalc);
-            if (!IsActive)
-                ManTimeOfDayExt.RemoveState("WM");
-        }
-
-
+        public static Globals.ObjectLayer WaterLayer => waterLayer;
+        private static Globals.ObjectLayer waterLayer = new Globals.ObjectLayer("Water");
 
         internal bool Heart = false;
-
-        /// <summary>
-        /// Must be called each time AFTER the water height is altered!
-        /// Submit using ApplyHeightCalc()
-        /// </summary>
-        internal static bool UpdateHeightCalc()
+        public byte heartBeat;
+        internal static bool PistonHeart = false;
+        private static Vector4 WorldPosOffset = Vector3.zero;
+        private static int ID = Shader.PropertyToID("_WorldPos");
+        internal static void WorldShift()
         {
-            bool delta = false;
-            float heightCalcNew;
-            if (ManGameMode.inst.IsCurrentModeMultiplayer())
-            {   // Follow the server, and ignore most local settings (unless we are the host)
-                UpdateNetworkedWaterIfNeeded();
-                if (ManGameMode.inst.IsCurrent<ModeDeathmatch>())
-                {   // Disable water for Deathmatch.  There is no aquatic deathmatch -yet-
-                    heightCalcNew = -1000f;
-                    if (!heightCalcNew.Approximately(heightCalc, 0.1f))
-                    {
-                        heightCalc = heightCalcNew;
-                        delta = true;
-                    }
-                }
-                else
-                {   // Copy water height from the host's values in MP
-                    heightCalcNew = NetHeightSmooth;
-                    if (!heightCalcNew.Approximately(heightCalc, 0.1f))
-                    {
-                        heightCalc = heightCalcNew;
-                        delta = true;
-                    }
-                }
+            try
+            {
+                DebugWater.Log("World beginning shift");
+                PistonHeart = !PistonHeart;
+                WorldMove = true;
+                WorldDidMove = true;
+                CompensateForTreadmill();
             }
-            else
-            {   // Update to local client water height
-                if (IsActive)
-                {   // Calculate the water and submit it
-                    heightCalcNew = Height + (rainFlood * floodHeightMultiplier);
-                    if (!heightCalcNew.Approximately(heightCalc, 0.1f))
-                    {
-                        heightCalc = heightCalcNew;
-                        delta = true;
-                    }
-                }
-                else
-                {   // Turn off the water and move it super far away
-                    heightCalcNew = -1024f;
-                    if (!heightCalcNew.Approximately(heightCalc, 0.1f))
-                    {
-                        heightCalc = heightCalcNew;
-                        delta = true;
-                    }
-                }
+            catch (Exception e)
+            {
+                throw new Exception("WorldShift failed", e);
             }
-            return delta;
         }
-        internal static void ApplyHeightCalc(float value)
+        
+        internal static void WorldShiftEnd(IntVector3 vec)
         {
-            heightCalcSet = value;
-            UpdateBlockSleepAndVisualHeights();
+            try
+            {
+                foreach (var item in ActiveWaterTiles)
+                {
+                    item.Value.UpdateTileTreadmill(vec);
+                }
+                OnMoveWorldOrigin(vec);
+                //WaterBlock.MassApplyForces();
+                DebugWater.Log("World ended shift");
+            }
+            catch (Exception e)
+            {
+                throw new Exception("WorldShiftEnd failed", e);
+            }
         }
-        internal static void UpdateBlockSleepAndVisualHeights()
+        public static void OnMoveWorldOrigin(IntVector3 delta)
         {
-            minBlockSleepHeight = Height + BlockSleepHeightOffset;
-            SetVisualWaterHeight(HeightCalc);
+            try
+            {
+                WaterParticleHandler.OnMoveWorldOrigin(delta);
+                WorldPosOffset -= delta;
+                foreach (var item in matsMain)
+                    item.SetVector(ID, WorldPosOffset);
+            }
+            catch (Exception e)
+            {
+                throw new Exception("OnMoveWorldOrigin failed", e);
+            }
         }
 
         public void OnTriggerStay(Collider collider)
@@ -1135,6 +1244,149 @@ namespace WaterMod
             if (wEffect != null)
             {
                 wEffect.Ext(heartBeat);
+            }
+        }
+
+
+
+
+        // ------------------------  UPDATERS  ------------------------
+
+        public static void UpdateFixedMain() => WaterFixedUpdate.Send();
+        public static void UpdateLateMain()
+        {
+            WaterLateUpdate.Send();
+            /*
+            if (WorldDidMove)
+                WorldDidMove = false;
+            else*/
+            if (WorldMove)
+                WorldMove = false;
+            AdjustFog();
+        }
+
+        private void RemoteUpdate()
+        {
+            try
+            {
+                if (gameObject == null)
+                    throw new NullReferenceException("gameObject");
+                if (PhysicsZone == null)
+                    throw new NullReferenceException("PhysicsZone");
+                if (waterGUI == null)
+                    throw new NullReferenceException("waterGUI");
+                if (Camera.main == null)
+                    throw new NullReferenceException("Camera.main");
+                if (ManGameMode.inst == null || ManTimeOfDay.inst == null)
+                    return;
+                if (!IsActive)
+                {
+                    gameObject.SetActive(false);
+                    PhysicsZone.transform.position = Vector3.down * 2000f;
+                    return;
+                }
+                blockSFXCount = 0;
+
+                if (UpdateHeightCalc())
+                {
+                    ApplyHeightCalc(heightCalc);
+                }
+
+                WaterParticleHandler.MaintainBubbles();
+                try
+                {
+                    if (Camera.main.transform.position.y < HeightCalc)
+                    {
+                        float height;
+                        if (Singleton.playerTank && CameraManager.inst.IsCurrent<TankCamera>())
+                            height = Singleton.playerTank.boundsCentreWorldNoCheck.y;
+                        else
+                            height = Camera.main.transform.position.y;
+
+                        depthMultiUnclamped = Mathf.Approximately(AbyssDepth, 0) ? 1 : 1
+                            - ((HeightCalc - height) / AbyssDepth);
+                        depthMulti = Mathf.Clamp01(depthMultiUnclamped);
+                        UpdateDarkness();
+                    }
+                    else if (CameraSubmerged)
+                    {   // OUTSIDE the water
+                        CameraSubmerged = false;
+                        UpdateAllTiles();
+                        ManTimeOfDayExt.RemoveState("WM");
+                        ManTimeOfDay.inst.BlendImmediately();
+                    }
+
+
+                    ManNetwork mp = ManNetwork.inst;
+                    bool weAreClient = false;
+                    if (mp != null && mp.IsMultiplayer())
+                    {
+                        weAreClient = true;
+                    }
+
+                    if (Input.GetKeyDown(QPatch.key) && !Input.GetKey(KeyCode.LeftShift))
+                    {
+                        if (weAreClient)
+                        {
+                            try
+                            {
+                                if (!ManGameMode.inst.IsCurrent<ModeDeathmatch>())
+                                {
+                                    if (ManNetwork.IsHost)
+                                    {
+                                        ShowGUI = !ShowGUI;
+                                        waterGUI.gameObject.SetActive(ShowGUI);
+                                    }
+                                    else
+                                    {
+                                        Console.WriteLine("Tried to change water, but is a client!");
+                                    }
+                                }
+                                else
+                                {
+                                    ManUI.inst.ShowErrorPopup("You cannot use water in this gamemode");
+                                }
+                            }
+                            catch { }
+                        }
+                        else
+                        {
+                            ShowGUI = !ShowGUI;
+                            waterGUI.gameObject.SetActive(ShowGUI);
+                            if (!ShowGUI)
+                            {
+                                try
+                                {
+                                    _inst.Save();
+                                }
+                                catch { }
+                            }
+                        }
+
+                    }
+                    if (weAreClient && !ManGameMode.inst.IsCurrent<ModeDeathmatch>())
+                    {   // Smooth lerp client to our target water height
+                        NetHeightSmooth = NetHeightSmooth * 0.9f + NetworkHandler.ServerWaterHeight * 0.1f;
+                    }
+                    PhysicsZone.transform.position = new Vector3(Singleton.camera.transform.position.x, HeightCalc, Singleton.camera.transform.position.z);
+                    if (_WeatherMod && !weAreClient)
+                    {
+                        float dTime = Time.deltaTime;
+                        float newHeight = RainFlood;
+                        //newHeight += WeatherMod.RainWeight * WaterGlobals.RainWeightMultiplier * dTime;
+                        newHeight *= 1f - WaterGlobals.RainDrainMultiplier * dTime;
+                        RainFlood += Mathf.Clamp(newHeight - RainFlood, -WaterGlobals.FloodChangeClamp * dTime,
+                            WaterGlobals.FloodChangeClamp * dTime);
+                    }
+                }
+                catch (Exception e)
+                {
+                    throw new Exception("Fail whilist handling main water mod functions", e);
+                }
+            }
+            catch (Exception e)
+            {
+                DebugWater.FatalError("Water Mod + Lava has encountered a serious error - " + e);
             }
         }
 
@@ -1197,342 +1449,237 @@ namespace WaterMod
             WaterTank.UpdateAllReversed();
         }
 
-        internal static bool CameraSubmerged = false;
 
-        static Color underWaterColor = new Color(0, 0.1704828f, 1f, 0.65f);
-        static Color underLavaColor = new Color(0.97f, 0.41f, 0.024f, 0.65f);
 
-        static Gradient underWaterSkyColors = new Gradient()
+
+        // ------------------------  GUI MENU  ------------------------
+
+        private bool ShowGUI = false;
+        private WaterGUI waterGUI;
+        internal class WaterGUI : MonoBehaviour
         {
-            alphaKeys = new GradientAlphaKey[]
-            {
-                new GradientAlphaKey(1f, 0f),
-                new GradientAlphaKey(1f, 1f)
-            },
+            private Rect Window = new Rect(0, 0, 140, 75);
 
-            colorKeys = new GradientColorKey[]
+            private void OnGUI()
             {
-                new GradientColorKey(underWaterColor, 0f),
-                new GradientColorKey(underWaterColor, 1f),
-            }
-        };
-        static Gradient underLavaSkyColors = new Gradient()
-        {
-            alphaKeys = new GradientAlphaKey[]
-            {
-                new GradientAlphaKey(1f, 0f),
-                new GradientAlphaKey(1f, 1f)
-            },
-
-            colorKeys = new GradientColorKey[]
-            {
-                new GradientColorKey(underLavaColor, 0f),
-                new GradientColorKey(underLavaColor, 1f),
-            }
-        };
-
-        private static Color spoopy = new Color(0.005f, 0.005f, 0.025f, 1f);
-        //private static Color spoopy = new Color(0, 0, 0, 1f);
-        private static float multiplierUnclamped = 0;
-        private static float multiplier = 0;
-
-        public static Color SetDarkness(Color inColor)
-        {
-            var sky = m_Sky.GetValue(ManTimeOfDay.inst) as TOD_Sky;
-
-            RenderSettings.fog = true;
-            RenderSettings.fogMode = FogMode.ExponentialSquared;
-            RenderSettings.fogStartDistance = 0f;
-            RenderSettings.fogEndDistance = 40f;
-            sky.m_UseTerraTechBiomeData = true;
-            sky.Fog.Mode = TOD_FogType.None;
-            sky.Ambient.Mode = TOD_AmbientType.None;
-
-            Color abyssColor;
-            if (QPatch.TheWaterIsLava)
-            {
-                abyssColor = underLavaColor * multiplier * inColor;
-                abyssColor.a = 1f;
-                //RenderSettings.sun.enabled = false;
-                RenderSettings.fogDensity = 420f;
-                RenderSettings.fogColor = abyssColor;
-                RenderSettings.ambientLight = abyssColor;
-                RenderSettings.ambientGroundColor = abyssColor;
-                RenderSettings.ambientIntensity = 1 + multiplier;
-                var keys = underLavaSkyColors.colorKeys;
-                keys[0].color = keys[1].color = abyssColor;
-                underLavaSkyColors.colorKeys = keys;
-
-                sky.Day.AmbientColor = sky.Night.AmbientColor = underLavaSkyColors;
-                sky.Day.FogColor = sky.Night.FogColor = sky.Day.LightColor = sky.Night.LightColor = sky.Day.SkyColor = sky.Night.SkyColor = underLavaSkyColors;
-            }
-            else
-            {
-                Color TODColorDelta = ManTimeOfDay.inst.NightTime ? new Color(0.525f, 0.525f, 0.525f, 1) : new Color(1, 1, 1, 1);
-                abyssColor = underWaterColor * TODColorDelta * multiplier * inColor;
-                abyssColor.a = 1f;
-                float depthWatch = Mathf.Clamp01((multiplierUnclamped / 2) - (ManTimeOfDay.inst.NightTime ? 0f : 0.5f));
-                Color darker = (spoopy * depthWatch) + (abyssColor * (1f - depthWatch));
-                //RenderSettings.sun.enabled = false;
-                RenderSettings.fogDensity = 160f;
-                RenderSettings.fogColor = darker;
-                RenderSettings.ambientLight = darker;
-                RenderSettings.ambientGroundColor = darker;
-                RenderSettings.ambientIntensity = 1 + multiplier;
-                var keys = underWaterSkyColors.colorKeys;
-                keys[0].color = keys[1].color = darker;
-                underWaterSkyColors.colorKeys = keys;
-
-                sky.Day.AmbientColor = sky.Night.AmbientColor = underWaterSkyColors;
-                sky.Day.FogColor = sky.Night.FogColor = sky.Day.LightColor = sky.Night.LightColor = sky.Day.SkyColor = sky.Night.SkyColor = underWaterSkyColors;
-            }
-            return abyssColor;
-        }
-        public static void KeepDarkness(DayNightColours dayColours, DayNightColours nightColours)
-        {// INSIDE the water
-            Color abyssColor;
-            ManTimeOfDay.inst.BlendImmediately();
-            if (QPatch.TheWaterIsLava)
-            {
-                abyssColor = underLavaColor * multiplier;
-                abyssColor.a = 1f;
-                dayColours.DustVFXColour *= abyssColor;
-                nightColours.DustVFXColour *= abyssColor;
-                dayColours.LightColour *= abyssColor;
-                nightColours.LightColour *= abyssColor;
-                dayColours.AmbientColour *= abyssColor;
-                nightColours.AmbientColour *= abyssColor;
-                dayColours.RayColour *= abyssColor;
-                nightColours.RayColour *= abyssColor;
-                dayColours.FogColour *= abyssColor;
-                nightColours.FogColour *= abyssColor;
-                dayColours.SkyColour *= abyssColor;
-                nightColours.SkyColour *= abyssColor;
-                dayColours.SunMoonColour *= abyssColor;
-                nightColours.SunMoonColour *= abyssColor;
-            }
-            else
-            {
-                Color TODColorDelta = ManTimeOfDay.inst.NightTime ? new Color(0.525f, 0.525f, 0.525f, 1) : new Color(1, 1, 1, 1);
-                abyssColor = underWaterColor * TODColorDelta * multiplier;
-                abyssColor.a = 1f;
-                float depthWatch = Mathf.Clamp01((multiplierUnclamped / 2) - (ManTimeOfDay.inst.NightTime ? 0f : 0.5f));
-                Color darker = (spoopy * depthWatch) + (abyssColor * (1f - depthWatch));
-                dayColours.DustVFXColour *= darker;
-                nightColours.DustVFXColour *= darker;
-                dayColours.LightColour *= darker;
-                nightColours.LightColour *= darker;
-                dayColours.AmbientColour *= darker;
-                nightColours.AmbientColour *= darker;
-                dayColours.RayColour *= darker;
-                nightColours.RayColour *= darker;
-                dayColours.FogColour *= darker;
-                nightColours.FogColour *= darker;
-                dayColours.SkyColour *= darker;
-                nightColours.SkyColour *= darker;
-                dayColours.SunMoonColour *= darker;
-                nightColours.SunMoonColour *= darker;
-            }
-        }
-        public static readonly ManTimeOfDayExt.TOD_Ordering order = new ManTimeOfDayExt.TOD_Ordering(
-            "WM", 0, SetDarkness, KeepDarkness);
-        public static void UpdateDarkness()
-        {// INSIDE the water
-            if (!CameraSubmerged)
-            {
-                CameraSubmerged = true;
-                UpdateAllTiles();
-            }
-            ManTimeOfDayExt.SetState(order);
-        }
-
-        private void RemoteUpdate()
-        {
-            if (gameObject == null)
-                throw new NullReferenceException("gameObject");
-            if (PhysicsZone == null)
-                throw new NullReferenceException("PhysicsZone");
-            if (waterGUI == null)
-                throw new NullReferenceException("waterGUI");
-            if (Camera.main == null)
-                throw new NullReferenceException("Camera.main");
-            if (ManGameMode.inst == null || ManTimeOfDay.inst == null)
-                return;
-            if (!IsActive)
-            {
-                gameObject.SetActive(false);
-                PhysicsZone.transform.position = Vector3.down * 2000f;
-                return;
-            }
-            blockSFXCount = 0;
-
-            if (UpdateHeightCalc())
-            {
-                ApplyHeightCalc(heightCalc);
-            }
-
-            WaterParticleHandler.MaintainBubbles();
-            try
-            {
-                if (Camera.main.transform.position.y < HeightCalc)
+                try
                 {
-                    float height;
-                    if (Singleton.playerTank && CameraManager.inst.IsCurrent<TankCamera>())
-                        height = Singleton.playerTank.boundsCentreWorldNoCheck.y;
-                    else
-                        height = Camera.main.transform.position.y;
-
-                    multiplierUnclamped = Mathf.Approximately(WaterGlobals.AbyssDepth, 0) ? 1 : 1
-                        - ((HeightCalc - height) / WaterGlobals.AbyssDepth);
-                    multiplier = Mathf.Clamp01(multiplierUnclamped);
-                    UpdateDarkness();
+                    Window = GUI.Window(29587115, Window, GUIWindow, "Water Settings");
                 }
-                else if (CameraSubmerged)
-                {   // OUTSIDE the water
-                    CameraSubmerged = false;
-                    UpdateAllTiles();
-                    ManTimeOfDayExt.RemoveState("WM");
-                    ManTimeOfDay.inst.BlendImmediately();
-                }
+                catch { }
+            }
 
-
-                ManNetwork mp = ManNetwork.inst;
-                bool weAreClient = false;
-                if (mp != null && mp.IsMultiplayer())
+            public void DelayedSave()
+            {
+                try
                 {
-                    weAreClient = true;
+                    _inst.Save();
                 }
-
-                if (Input.GetKeyDown(QPatch.key) && !Input.GetKey(KeyCode.LeftShift))
+                catch { }
+            }
+            private void GUIWindow(int ID)
+            {
+                GUILayout.Label("Height: " + Height.ToString("0.0"));
+                if (WaterGlobals.OceanMan2 && UseStandards)
                 {
-                    if (weAreClient)
+                    GUILayout.Label("Height locked due to UseStandards enabled");
+                    GUILayout.Label("and Ocean Mode (in settings)");
+                }
+                else
+                {
+                    int height = Mathf.RoundToInt(GUILayout.HorizontalSlider(Mathf.RoundToInt(Height / 5), -15f, 20f)) * 5;
+                    if (Height != height)
                     {
+                        CancelInvoke("DelayedSave");
+                        Height = height;
+                        Invoke("DelayedSave", 1f);
+
                         try
                         {
-                            if (!ManGameMode.inst.IsCurrent<ModeDeathmatch>())
-                            {
-                                if (ManNetwork.IsHost)
-                                {
-                                    ShowGUI = !ShowGUI;
-                                    waterGUI.gameObject.SetActive(ShowGUI);
-                                }
-                                else
-                                {
-                                    Console.WriteLine("Tried to change water, but is a client!");
-                                }
-                            }
-                            else
-                            {
-                                ManUI.inst.ShowErrorPopup("You cannot use water in this gamemode");
-                            }
+                            _inst.TrySetWaterHeightSlider(height);
                         }
                         catch { }
                     }
+                }
+
+                GUI.DragWindow();
+            }
+        }
+
+
+
+
+        // ------------------------  STATS AND SETTINGS  ------------------------
+        private const float physicsZoneSize = 65536f;//4096f
+
+        public static bool UseStandards = true;
+        /// <summary> Traversal noise </summary>
+        public static float WaterSound = 0.75f;
+        /// <summary> Splash noise </summary>
+        public static float WaterSoundSplash = 0.75f;
+        public static bool AlwaysShowTrails = false;
+
+        public static EventNoParams WaterFixedUpdate = new EventNoParams();
+        public static EventNoParams WaterLateUpdate = new EventNoParams();
+
+
+        /// <summary>
+        /// The PLAYER set height of the water height.
+        /// <para> Does not take action if we aren't the main host</para>
+        /// </summary>
+        public static float Height
+        {
+            get
+            {
+                if (WaterGlobals.OceanMan2)
+                {
+                    if (UseStandards)
+                        return -50;
                     else
-                    {
-                        ShowGUI = !ShowGUI;
-                        waterGUI.gameObject.SetActive(ShowGUI);
-                        if (!ShowGUI)
-                        {
-                            try
-                            {
-                                _inst.Save();
-                            }
-                            catch { }
-                        }
-                    }
+                        return heightOcean;
+                }
+                return ManWaterSaveData.inst.HeightSave;
+            }
+            set
+            {
+                if (WaterGlobals.OceanMan2)
+                    heightOcean = value;
+                else
+                    ManWaterSaveData.inst.HeightSave = value;
+                if (UpdateHeightCalc())
+                    ApplyHeightCalc(heightCalc);
+            }
+        }
+        public static float height = -25f;
+        public static float heightOcean = -25f;
+        /// <summary>
+        /// The height that blocks shall be able to sleep at when their bounds is within some range of this given height. 
+        /// <para> Lazy updated!  The client determines the sleep height - for now...</para>
+        /// </summary>
+        public static float minBlockSleepHeight = HeightCalc + BlockSleepHeightOffset;
+        public static float BlockSleepHeightOffset = -8f;
+        public static float AbyssDepth = 50f;
+        public static bool UseDynamicFog = true;
 
-                }
-                if (weAreClient && !ManGameMode.inst.IsCurrent<ModeDeathmatch>())
-                {   // Smooth lerp client to our target water height
-                    NetHeightSmooth = NetHeightSmooth * 0.9f + NetworkHandler.ServerWaterHeight * 0.1f;
-                }
-                PhysicsZone.transform.position = new Vector3(Singleton.camera.transform.position.x, HeightCalc, Singleton.camera.transform.position.z);
-                if (_WeatherMod && !weAreClient)
+        /// <summary>
+        /// Editable.
+        /// <para>For the actual values the mod uses, see <see cref="WaterGlobals"/></para>
+        /// </summary>
+        public static float Density = 8,
+            FanJetMultiplier = 1.75f,
+            ResourceBuoyancyMultiplier = 1.2f,
+            BulletDampener = 1E-06f,
+            LaserFraction = 0.275f,
+            MissileDampener = 0.012f,
+            SurfaceSkinning = 0.25f,
+            SubmergedTankDampening = 0.4f,//0.01f,
+            SubmergedTankDampeningYAddition = 0.25f,//0f,
+            SurfaceTankDampening = 0f,
+            SurfaceTankDampeningYAddition = 0.5f,//0.0225f,
+            RainWeightMultiplier = 0.06f,
+            RainDrainMultiplier = 0.06f,
+            FloodChangeClamp = 0.002f,
+            LavaDampenMulti = 3,
+            WheelWaterForceMultiplier = 0.45f;
+
+        /// <summary>
+        /// Non-Editable.
+        /// <para>These values are directly used in calculations.</para>
+        /// </summary>
+        public const float SubmergedBlockDampening = 0.4f,
+            SubmergedBlockDampeningYAddition = 0.4f,
+            SurfaceBlockDampening = 0.2f,
+            SurfaceBlockDampeningYAddition = 0.75f,
+            BasicBlockFloatAssistMulti = 2.75f,
+            SmallWheelWaterBuff = 2.25f,
+            MinWheelMaxForce = 2.5f;
+
+        public static float ApplyLava(float initialVal)
+        {
+            return 1f - ((1f - initialVal) / 3f);
+        }
+        public static void ApplyClientSideSettingsAndSendForHost()
+        {
+            if (ManNetwork.IsHost)
+            {
+                if (UseStandards)
+                    SetToStandard();
+                else
+                    SetToCustom();
+                UpdateOtherSettingsAsHost();
+                if (ManNetwork.IsNetworked)
+                    NetworkHandler.TryBroadcastSettingsState();
+            }
+        }
+        private static void SetToCustom()
+        {
+            WaterGlobals.Density = Density;
+            WaterBlock.cachedFloatVal = WaterGlobals.Density * 5f;
+            WaterGlobals.FanJetMultiplier = FanJetMultiplier;
+            WaterGlobals.ResourceBuoyancyMultiplier = ResourceBuoyancyMultiplier;
+            WaterGlobals.BulletDampener = BulletDampener;
+            WaterGlobals.LaserFraction = LaserFraction;
+            WaterGlobals.MissileDampener = MissileDampener;
+            WaterGlobals.SurfaceSkinning = SurfaceSkinning;
+            WaterGlobals.SubmergedTankDampening = SubmergedTankDampening;
+            WaterGlobals.SubmergedTankDampeningYAddition = SubmergedTankDampeningYAddition;
+            WaterGlobals.SurfaceTankDampening = SurfaceTankDampening;
+            WaterGlobals.SurfaceTankDampeningYAddition = SurfaceTankDampeningYAddition;
+            WaterGlobals.RainWeightMultiplier = RainWeightMultiplier;
+            WaterGlobals.RainDrainMultiplier = RainDrainMultiplier;
+            WaterGlobals.FloodChangeClamp = FloodChangeClamp;
+            WaterGlobals.LavaDampenMulti = LavaDampenMulti;
+            WaterGlobals.WheelWaterForceMultiplier = WheelWaterForceMultiplier;
+        }
+        private static void SetToStandard()
+        {
+            WaterGlobals.Density = ManWaterDefaults.Density;
+            WaterBlock.cachedFloatVal = ManWaterDefaults.Density * 5f;
+            WaterGlobals.FanJetMultiplier = ManWaterDefaults.FanJetMultiplier;
+            WaterGlobals.ResourceBuoyancyMultiplier = ManWaterDefaults.ResourceBuoyancyMultiplier;
+            WaterGlobals.BulletDampener = ManWaterDefaults.BulletDampener;
+            WaterGlobals.LaserFraction = ManWaterDefaults.LaserFraction;
+            WaterGlobals.MissileDampener = ManWaterDefaults.MissileDampener;
+            WaterGlobals.SurfaceSkinning = ManWaterDefaults.SurfaceSkinning;
+            WaterGlobals.SubmergedTankDampening = ManWaterDefaults.SubmergedTankDampening;
+            WaterGlobals.SubmergedTankDampeningYAddition = ManWaterDefaults.SubmergedTankDampeningYAddition;
+            WaterGlobals.SurfaceTankDampening = ManWaterDefaults.SurfaceTankDampening;
+            WaterGlobals.SurfaceTankDampeningYAddition = ManWaterDefaults.SurfaceTankDampeningYAddition;
+            WaterGlobals.RainWeightMultiplier = ManWaterDefaults.RainWeightMultiplier;
+            WaterGlobals.RainDrainMultiplier = ManWaterDefaults.RainDrainMultiplier;
+            WaterGlobals.FloodChangeClamp = ManWaterDefaults.FloodChangeClamp;
+            WaterGlobals.LavaDampenMulti = ManWaterDefaults.LavaDampenMulti;
+            WaterGlobals.WheelWaterForceMultiplier = ManWaterDefaults.WheelWaterForceMultiplier;
+        }
+        private static void UpdateOtherSettingsAsHost()
+        {
+            WaterGlobals.DestroyTreesInWater = QPatch.DestroyTreesInWater;
+            WaterGlobals.EnableLooseBlocksFloat = QPatch.EnableLooseBlocksFloat;
+            WaterGlobals.SimulateProjectiles = QPatch.SimulateProjectiles;
+
+            try
+            {
+                SetState();
+                if (WaterGlobals.OceanMan2 != QPatch.OceanMan2)
                 {
-                    float dTime = Time.deltaTime;
-                    float newHeight = RainFlood;
-                    //newHeight += WeatherMod.RainWeight * WaterGlobals.RainWeightMultiplier * dTime;
-                    newHeight *= 1f - WaterGlobals.RainDrainMultiplier * dTime;
-                    RainFlood += Mathf.Clamp(newHeight - RainFlood, -WaterGlobals.FloodChangeClamp * dTime,
-                        WaterGlobals.FloodChangeClamp * dTime);
-                }
-            }
-            catch (Exception e)
-            {
-                throw e;
-            }
-        }
+                    WaterGlobals.OceanMan2 = QPatch.OceanMan2;
+                    //TerrainOperations.BeachingMode = QPatch.OceanMan2;
+                    if (WaterGlobals.OceanMan2)
+                        ManWorldGeneratorExt.InsurePreInit();
 
-        internal static bool PistonHeart = false;
-        private static Vector4 WorldPosOffset = Vector3.zero;
-        private static int ID = Shader.PropertyToID("_WorldPos");
-        internal static void WorldShift()
-        {
-            try
-            {
-                DebugWater.Log("World beginning shift");
-                PistonHeart = !PistonHeart;
-                WorldMove = true;
-                WorldDidMove = true;
-                CompensateForTreadmill();
-            }
-            catch (Exception e)
-            {
-                throw new Exception("WorldShift failed", e);
-            }
-        }
-        
-        internal static void WorldShiftEnd(IntVector3 vec)
-        {
-            try
-            {
-                foreach (var item in ActiveWaterTiles)
-                {
-                    item.Value.UpdateTileTreadmill(vec);
+                    //ManWorld.inst.CurrentBiomeMap.InvalidateBiomeDB();
+                    //ManWorld.inst.CurrentBiomeMap.LookupBiome(0);
+                    ManWorld.inst.Reset(ManWorld.inst.CurrentBiomeMap);
+                    /*
+                    foreach (var item in ManWorld.inst.TileManager.IterateTiles())
+                        ManWorldTileExt.HostOnly_ReloadTile(item.Coord, false);//*/
                 }
-                OnMoveWorldOrigin(vec);
-                //WaterBlock.MassApplyForces();
-                DebugWater.Log("World ended shift");
+                else
+                    WaterGlobals.OceanMan2 = QPatch.OceanMan2;
             }
             catch (Exception e)
             {
-                throw new Exception("WorldShiftEnd failed", e);
-            }
-        }
-        public static void OnMoveWorldOrigin(IntVector3 delta)
-        {
-            try
-            {
-                WaterParticleHandler.OnMoveWorldOrigin(delta);
-                WorldPosOffset -= delta;
-                foreach (var item in matsMain)
-                    item.SetVector(ID, WorldPosOffset);
-            }
-            catch (Exception e)
-            {
-                throw new Exception("OnMoveWorldOrigin failed", e);
-            }
-        }
-
-        public static List<WaterLook> waterLooks = new List<WaterLook>();
-
-        public static void UpdateLook()
-        {
-            try
-            {
-                foreach (var item in ActiveWaterTiles)
-                {
-                    item.Value.UpdateLook();
-                }
-                SurfacePool.MaxGrow = waterLooks[SelectedLook].ParticleLimits;
-                WaterParticleHandler.UpdateSplash();
-                WaterParticleHandler.UpdateSurface();
-                WaterParticleHandler.UpdateBubbles();
-            }
-            catch (Exception e)
-            {
-                DebugWater.Log(e);
+                DebugWater.FatalError("Failed to set setting" + e);
             }
         }
 

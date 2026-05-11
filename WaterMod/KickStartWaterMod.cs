@@ -11,8 +11,9 @@ namespace WaterMod
 #if STEAM
     public class KickStartWaterMod : ModBase
     {
-        string modName = "Water Mod + Lava";
+        const string modName = "Water Mod + Lava";
 
+        internal static ModDataHandle oInst;
         bool isInit = false;
         bool firstInit = false;
         public override bool HasEarlyInit()
@@ -27,6 +28,8 @@ namespace WaterMod
             DebugWater.Log("Water Mod: CALLED EARLYINIT");
             if (isInit)
                 return;
+            if (oInst == null)
+                oInst = new ModDataHandle(modName);
             try
             {
                 TerraTechETCUtil.ModStatusChecker.EncapsulateSafeInit(modName, QPatch.Main);

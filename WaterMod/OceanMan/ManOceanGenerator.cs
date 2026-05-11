@@ -1,10 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Reflection;
-using UnityEngine;
+using System.Text;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+using Nuterra.World.Biomes;
+using Nuterra.World.Chunks;
+using Nuterra.World.Scenery;
 using TerraTechETCUtil;
+using UnityEngine;
+using static WaterMod.SurfacePool;
 
 
 namespace WaterMod
@@ -50,24 +56,42 @@ namespace WaterMod
     {
         public const int numExpectedBiomes = 19;
 
-        public static bool ApplySeaToALL = true;
+        /// <summary>
+        /// Currently messes with TOO much
+        /// </summary>
+        public static bool ApplySeaToALL = false;
         public static AnimationCurve SeaDistanceWeighting => AnimationCurve.Linear(0f, 1f, OceanDebuggerGUI.value, 0f); //new AnimationCurve();
+
+        public const float HeightOffsetMulti = 1f / TerrainOperations.TileHeightDefault;
+
 
         //public static float seaWeights = 0.195f;//0.25f;
         //public static float seaWeights = 15000f;
         public static float seaWeights = 0.4f;
         private static float seaWeightsBeaches => 0.6f * seaWeights;
-        public const float SeaBeachHeight = -0.225f;//-0.2f;
+        /// <summary> OFFSET FROM NORMAL TERRAIN GEN </summary>
+        private const float SeaBeachHeightScaled = HeightOffsetMulti * SeaBeachHeight;//-0.2f;
+        public const float SeaBeachHeight = -22.5f;//-0.2f;
         private static float seaWeightsBeachesSubmerged => 0.8f * seaWeights;
-        public const float SeaBeachSubHeight = -0.325f;
+        /// <summary> OFFSET FROM NORMAL TERRAIN GEN </summary>
+        private const float SeaBeachSubHeightScaled = HeightOffsetMulti * SeaBeachSubHeight;
+        public const float SeaBeachSubHeight = -32.5f;//-0.2f;
         private static float seaWeightsShallows => 0.3f * seaWeights;
-        public const float SeaShallowsHeight = -0.6f;
+        /// <summary> OFFSET FROM NORMAL TERRAIN GEN </summary>
+        private const float SeaShallowsHeightScaled = HeightOffsetMulti * SeaShallowsHeight;
+        public const float SeaShallowsHeight = -60f;
         private static float seaWeightsFauna => 0.4f * seaWeights;
-        public const float SeaFaunaHeight = -1.1f;
+        /// <summary> OFFSET FROM NORMAL TERRAIN GEN </summary>
+        private const float SeaFaunaHeightScaled = HeightOffsetMulti * SeaFaunaHeight;
+        public const float SeaFaunaHeight = -110f;
         private static float seaWeightsDeep => 0.13f * seaWeights;
-        public const float SeaDeepHeight = -1.5f;
+        /// <summary> OFFSET FROM NORMAL TERRAIN GEN </summary>
+        private const float SeaDeepHeightScaled = HeightOffsetMulti * SeaDeepHeight;
+        public const float SeaDeepHeight = 150f;
         private static float seaWeightsFloor => 0.1f * seaWeights;
-        public const float SeaFloorHeight = -1.75f;
+        /// <summary> OFFSET FROM NORMAL TERRAIN GEN </summary>
+        private const float SeaFloorHeightScaled = HeightOffsetMulti * SeaFloorHeight;
+        public const float SeaFloorHeight = -175f;
 
 
         public static bool oceanBiomesAllReady = false;
@@ -77,29 +101,50 @@ namespace WaterMod
         private static BiomeGroup seaBiomeGroup = null;
 
         /*
-Biome #0 - BasicGrasslandBiome_ScaledTrees
-Biome #1 - CopseOfTreesSubBiome
-Biome #2 - RockyRidgeBiome
-Biome #3 - WoodlandValleyBiome
-Biome #4 - DesertBiome
-Biome #5 - MogulsBiome
-Biome #6 - SmallDunesBiome
-Biome #7 - LowMesasBiome
-Biome #8 - LargeDunesBiome
-Biome #9 - FlatsBiome
-Biome #10 - MountainsBiome
-Biome #11 - TerracedHillsBiome
-Biome #12 - PeaksBiome
-Biome #13 - CanyonsBiome
-Biome #14 - EaglesNestBiome
-Biome #15 - GorgesBiome
-Biome #16 - StepSlopesBiome
-Biome #17 - PillarsBiome
-Biome #18 - IceBiome
-Biome #19 - LargeCraters_Biome
-Biome #20 - MidCraters_Biome
-Biome #21 - SmallCraters_Biome
+            Biome #0 - BasicGrasslandBiome_ScaledTrees
+            Biome #1 - CopseOfTreesSubBiome
+            Biome #2 - RockyRidgeBiome
+            Biome #3 - WoodlandValleyBiome
+            Biome #4 - DesertBiome
+            Biome #5 - MogulsBiome
+            Biome #6 - SmallDunesBiome
+            Biome #7 - LowMesasBiome
+            Biome #8 - LargeDunesBiome
+            Biome #9 - FlatsBiome
+            Biome #10 - MountainsBiome
+            Biome #11 - TerracedHillsBiome
+            Biome #12 - PeaksBiome
+            Biome #13 - CanyonsBiome
+            Biome #14 - EaglesNestBiome
+            Biome #15 - GorgesBiome
+            Biome #16 - StepSlopesBiome
+            Biome #17 - PillarsBiome
+            Biome #18 - IceBiome
+            Biome #19 - LargeCraters_Biome
+            Biome #20 - MidCraters_Biome
+            Biome #21 - SmallCraters_Biome
         */
+        public const string ParadoxialBeachesBiomeName = "ParadoxialBeachesBiome";
+        public const string SandShoalsBiomeName = "SandShoalsBiome";
+        public const string SoulShoalsBiomeName = "SoulShoalsBiome";
+        public const string MossyCreekBiomeName = "MossyCreekBiome";
+        public const string JaggedSeasBiomeName = "JaggedSeasBiome";
+        public const string WindingMoundsBiomeName = "WindingMoundsBiome";
+        public const string ArcticFractureBiomeName = "ArcticFractureBiome";
+        public const string PillarsShoreBiomeName = "PillarsShoreBiome";
+        public const string ImpactSeaBiomeName = "ImpactSeaBiome";
+        public static string[] AllSeaBiomes = new string[]
+            {
+                ParadoxialBeachesBiomeName,
+                SandShoalsBiomeName,
+                SoulShoalsBiomeName,
+                MossyCreekBiomeName,
+                JaggedSeasBiomeName,
+                WindingMoundsBiomeName,
+                ArcticFractureBiomeName,
+                PillarsShoreBiomeName,
+                ImpactSeaBiomeName,
+            };
         public static IEnumerable<KeyValuePair<Biome, float>> ApplyOceanicBiomes(List<Biome> biomes)
         {
             if (biomes == null)
@@ -114,50 +159,50 @@ Biome #21 - SmallCraters_Biome
 
             // The way biomeGroups work is that the lower priority biomes form in the middle
             // Desert sea
-            Biome biomer = CopyBiome(biomes[8], "ParadoxialBeachesBiome");
-            SinkBiomeTEMP(biomer, seaWeightsBeaches, true);
-            yield return new KeyValuePair<Biome, float>(biomer, SeaBeachHeight);
-            biomer = CopyBiome(biomes[5], "SandShoalsBiome");
-            SinkBiomeTEMP(biomer, seaWeightsBeachesSubmerged, true);
-            yield return new KeyValuePair<Biome, float>(biomer, SeaBeachSubHeight);
+            Biome biomer = CopyBiome(biomes[8], ParadoxialBeachesBiomeName);
+            SinkBiomeTEMP(biomer, SeaBeachHeightScaled, true);
+            yield return new KeyValuePair<Biome, float>(biomer, seaWeightsBeaches);
+            biomer = CopyBiome(biomes[5], SandShoalsBiomeName);
+            SinkBiomeTEMP(biomer, SeaBeachSubHeightScaled, true);
+            yield return new KeyValuePair<Biome, float>(biomer, seaWeightsBeachesSubmerged);
 
             // GrasslandsSea
-            biomer = CopyBiome(biomes[7], "SoulShoalsBiome");
-            SinkBiomeTEMP(biomer, SeaFaunaHeight, true);
+            biomer = CopyBiome(biomes[7], SoulShoalsBiomeName);
+            SinkBiomeTEMP(biomer, SeaFaunaHeightScaled, true);
             yield return new KeyValuePair<Biome, float>(biomer, seaWeightsFauna);
-            biomer = CopyBiome(biomes[2], "MossyCreekBiome");
-            SinkBiomeTEMP(biomer, SeaFaunaHeight, true);
+            biomer = CopyBiome(biomes[2], MossyCreekBiomeName);
+            SinkBiomeTEMP(biomer, SeaFaunaHeightScaled, true);
             yield return new KeyValuePair<Biome, float>(biomer, seaWeightsFauna);
 
             // Mountains sea
-            biomer = CopyBiome(biomes[12], "JaggedSeasBiome");
-            SinkBiomeTEMP(biomer, SeaFloorHeight, false);
+            biomer = CopyBiome(biomes[12], JaggedSeasBiomeName);
+            SinkBiomeTEMP(biomer, SeaFloorHeightScaled, false);
             yield return new KeyValuePair<Biome, float>(biomer, seaWeightsFloor);
-            biomer = CopyBiome(biomes[15], "WindingMoundsBiome");
-            SinkBiomeTEMP(biomer, SeaDeepHeight, true, true);
+            biomer = CopyBiome(biomes[15], WindingMoundsBiomeName);
+            SinkBiomeTEMP(biomer, SeaDeepHeightScaled, true, true);
             yield return new KeyValuePair<Biome, float>(biomer, seaWeightsDeep);
 
             // Ice sea
-            biomer = CopyBiome(biomes[18], "ArcticFractureBiome");
-            SinkBiomeTEMP(biomer, SeaFaunaHeight, false, true);
+            biomer = CopyBiome(biomes[18], ArcticFractureBiomeName);
+            SinkBiomeTEMP(biomer, SeaFaunaHeightScaled, false, true);
             yield return new KeyValuePair<Biome, float>(biomer, seaWeightsShallows * 0.07f);
 
             // Pillars sea
-            biomer = CopyBiome(biomes[17], "PillarsShoreBiome");
-            SinkBiomeTEMP(biomer, SeaBeachHeight, false);
+            biomer = CopyBiome(biomes[17], PillarsShoreBiomeName);
+            SinkBiomeTEMP(biomer, SeaBeachHeightScaled, false);
             yield return new KeyValuePair<Biome, float>(biomer, seaWeightsBeaches * 0.03f);
 
             // Wasteland sea
-            biomer = CopyBiome(biomes[19], "ImpactSeaBiome");
-            SinkBiomeTEMP(biomer, SeaDeepHeight, true, true);
+            biomer = CopyBiome(biomes[19], ImpactSeaBiomeName);
+            SinkBiomeTEMP(biomer, SeaDeepHeightScaled, true, true);
             yield return new KeyValuePair<Biome, float>(biomer, seaWeightsDeep * 0.3f);
         }
 
 
         private static bool seaBiomesExist = false;
         private static bool rebootManOceanGenerator = false;
-        public static Dictionary<string, string> ObjectTypesWaterVariants = null;
-        public static Dictionary<SceneryTypes, string> ObjectTypesToReplaceInWater = new Dictionary<SceneryTypes, string>()
+        public static Dictionary<string, string> SceneryWaterVariants = null;
+        public static Dictionary<SceneryTypes, string> SceneryToReplaceInWater = new Dictionary<SceneryTypes, string>()
         {
             { SceneryTypes.MountainTree, "CoralCoarse" },
             { SceneryTypes.DeadTree, "DeadCoral" },
@@ -168,17 +213,17 @@ Biome #21 - SmallCraters_Biome
         };
         public static Dictionary<string, string[]> BiomesToAppend = new Dictionary<string, string[]>()
         {
-            //{ "GrasslandGroupStart", new string[] { "MossyCreekBiome" } }, // Starter biome shouldn't have water
-            { "GrasslandGroupBasic", new string[] { "MossyCreekBiome" } },
-            { "GrasslandGroupAdvanced", new string[] { "MossyCreekBiome", "SoulShoalsBiome" } },
-            { "DesertGroupBasic", new string[] { "ParadoxalBeachesBiome" } },
-            { "DesertGroupAdvanced", new string[] { "ParadoxalBeachesBiome", "SandShoalsBiome" } },
+            //{ "GrasslandGroupStart", new string[] { MossyCreekBiomeName} }, // Starter biome shouldn't have water
+            { "GrasslandGroupBasic", new string[] { MossyCreekBiomeName } },
+            { "GrasslandGroupAdvanced", new string[] { MossyCreekBiomeName, SoulShoalsBiomeName } },
+            { "DesertGroupBasic", new string[] { ParadoxialBeachesBiomeName } },
+            { "DesertGroupAdvanced", new string[] { ParadoxialBeachesBiomeName, SandShoalsBiomeName } },
             //{ "FlatsGroupBasic", new string[] {  } },
-            { "MountainsGroupBasic", new string[] { "WindingMoundsBiome"} },
-            { "MountainsGroupAdvanced", new string[] { "WindingMoundsBiome", "JaggedSeasBiome" } },
-            { "PillarsGroup", new string[] { "PillarsShoreBiome" } },
-            { "IceGroupAdvanced", new string[] { "ArcticFractureBiome" } },
-            { "Biome7Group", new string[] { "ImpactSeaBiome" } },
+            { "MountainsGroupBasic", new string[] { WindingMoundsBiomeName } },
+            { "MountainsGroupAdvanced", new string[] { WindingMoundsBiomeName, JaggedSeasBiomeName } },
+            { "PillarsGroup", new string[] { PillarsShoreBiomeName } },
+            { "IceGroupAdvanced", new string[] { ArcticFractureBiomeName } },
+            { "Biome7Group", new string[] { ImpactSeaBiomeName } },
         };
 
         private static FieldInfo distWeight = typeof(BiomeGroup).GetField("m_WeightingByDistance", BindingFlags.Instance | BindingFlags.NonPublic);
@@ -200,84 +245,97 @@ Biome #21 - SmallCraters_Biome
 
 
 
+        public static void HookToBiomes()
+        {
+            ManModChunks.ScriptCreateEvent.Subscribe(OnChunksCreationStarted);
+            ManModScenery.ScriptCreateEvent.Subscribe(OnSceneryCreationStarted);
+            ManModBiomes.ScriptCreateBiomeEvent.Subscribe(OnBiomesCreationStarted);
+        }
+        public static void UnHookFromBiomes()
+        {
+            ManModBiomes.ScriptCreateBiomeEvent.Unsubscribe(OnBiomesCreationStarted);
+            ManModScenery.ScriptCreateEvent.Unsubscribe(OnSceneryCreationStarted);
+            ManModChunks.ScriptCreateEvent.Unsubscribe(OnChunksCreationStarted);
+        }
+
+        public static void OnChunksCreationStarted(ManModChunks.CreateRequest reload)
+        {
+            reload.RequestToCreate(QPatch.ModNameAssetBundle, 
+                new CustomChunk("Coralsite")
+                {
+                    Name = "Coralsite",
+                    Description = "dead coral",
+                    PrefabName = SpawnHelper.GetResourceChunkPrefabs().First().name,
+                    Cost = 26,
+                    Rarity = ChunkRarity.Uncommon,
+                    Mass = 50,
+                    StaticFriction = 0,
+                    DynamicFriction = 0,
+                    Restitution = 1f,
+                    Health = 100,
+                    DamageableType = ManDamage.DamageableType.Standard,
+                    IsRefined = false,
+                    IsFuel = false,
+                    ComponentTier = ComponentTier.Null,
+                    FuelTime = 0,
+                    FuelEnergy = 350,
+                    MeshName = "Coralsite.obj",
+                    TextureName = "Coralsite.png",
+                    JSONData = new Dictionary<string, object>(),
+                });
+        }
+        public static void OnSceneryCreationStarted(ManModScenery.CreateRequest reload)
+        {
+            reload.RequestToCreate(QPatch.ModNameAssetBundle,
+                new CustomScenery("TubeCoral")
+                {
+                    Name = "Tube Coral",
+                    Description = "Mysterious coral creature",
+                    PrefabName = SpawnHelper.SceneryTypeToFirstSceneryName[SceneryTypes.ShroomTree],
+                    GroundRadius = 1.5f,
+                    MaxHeightOffset = 0f,
+                    MinHeightOffset = 0.1f,
+                    Health = 350,
+                    DamageableType = ManDamage.DamageableType.Wood,
+                    Hostile = false,
+                    Roving = false,
+                    MeshName = "TubeCoral.obj",
+                    TextureName = "TubeCoral.png",
+                    JSONData = new Dictionary<string, object>(),
+                    AttackedChunks = 0,
+                });
+        }
+        public static void OnBiomesCreationStarted(ManModBiomes.CreateRequestBiome reload)
+        {
+            var oInst = KickStartWaterMod.oInst;
+            var MC = oInst.GetModContainer();
+            foreach (var item in AllSeaBiomes)
+            {
+                string rawData = ResourcesHelper.FetchTextData(MC, string.Empty);
+                if (rawData != null)
+                    reload.CreateFromJSON(QPatch.ModNameAssetBundle, JObject.Parse(rawData), "WaterBiome");
+            }
+            //ManModBiomes.RegisterToLoad();
+        }
+
 
         private static void AddWaterScenery()
         {
-            if (ObjectTypesWaterVariants == null)
+            if (SceneryWaterVariants == null)
             {
-                ObjectTypesWaterVariants = new Dictionary<string, string>();
-                foreach (var item in SpawnHelper.IterateSceneryTypes())
+                SceneryWaterVariants = new Dictionary<string, string>();
+                foreach (var item in SpawnHelper.IterateAllScenery())
                 {
-                    foreach (var item2 in item.Values)
-                    {
-                        foreach (var item3 in item2)
-                        {
-                            try
-                            {
-                                if (ObjectTypesToReplaceInWater.TryGetValue((SceneryTypes)item3.GetComponent<Visible>().ItemType, out string vak))
-                                    ObjectTypesWaterVariants.Add(item3.name, vak);
-                            }
-                            catch { }
-                        }
-                    }
+                    var itemType = item.Value?.GetComponent<Visible>()?.m_ItemType;
+                    if (itemType != null && item.Key != null && 
+                        SceneryToReplaceInWater.TryGetValue((SceneryTypes)itemType.ItemType, out string vak))
+                        SceneryWaterVariants.Add(item.Key, vak);
                 }
             }
         }
 
 
 
-
-        private static bool PRIMARY_SanityCheck(BiomeMap biomesMain, out BiomeGroup[] groupB)
-        {
-            DebugWater.Log("Ocean man why don't you take me by the hand~");
-            if (biomesMain == null)
-            {
-                DebugWater.Log("Could not change biomes: Biomes is not loaded...");
-                groupB = null;
-                return false;
-            }
-            if (ManWorld.inst?.TileManager == null)
-            {
-                DebugWater.Log("Could not change biomes: TileManager is not loaded...");
-                groupB = null;
-                return false;
-            }
-            groupB = biomesBatched2.GetValue(biomesMain) as BiomeGroup[];
-            if (groupB == null || groupB.Length == 0)
-            {
-                DebugWater.Log("Could not change biomes: BiomeGroups is not loaded...");
-                return false;
-            }
-            return true;
-        }
-
-        private static List<Biome> InsureBiomesAreLoaded(BiomeMap biomesMain, List<BiomeGroup> biomesGrouped)
-        {
-            List<Biome> biomes = null;
-            var biomesDataGet = biomesData.GetValue(biomesMain);
-            if (biomesDataGet == null || biomesAll.GetValue(biomesDataGet) == null)
-            {
-                biomes = new List<Biome>();
-                foreach (BiomeGroup biomeGroup in biomesGrouped)
-                {
-                    for (int step = 0; step < biomeGroup.Biomes.Length; step++)
-                    {
-                        Biome biom = biomeGroup.Biomes[step];
-                        if (!biomes.Contains(biom))
-                            biomes.Add(biom);
-                    }
-                }
-                /*
-                DebugWater.Log("Waiting on biomesDataGet to load...");
-                return;
-                */
-            }
-            else
-                biomes = ((Biome[])biomesAll.GetValue(biomesDataGet)).ToList();
-            if (biomes == null)
-                throw new NullReferenceException(nameof(biomes));
-            return biomes;
-        }
         private static void RegenerateSeaBiomesToWeight(List<Biome> biomes)
         {
             SeabiomesByName = new Dictionary<string, Biome>();
@@ -302,8 +360,10 @@ Biome #21 - SmallCraters_Biome
             {
                 SeabiomesByName.Add(item.Key.name, item.Key);
                 SeabiomeToWeight.Add(item.Key, item.Value);
+                new WikiPageBiome(item.Key);
             }
         }
+
         private static void RegenerateSeaBiomesGroup(List<Biome> biomes, List<BiomeGroup> biomesGrouped)
         {
             Biome[] biomeShoehorn = new Biome[SeabiomeToWeight.Count];
@@ -435,16 +495,36 @@ Biome #21 - SmallCraters_Biome
                         }
 
                         Array.Resize(ref biomes2, biomes2.Length + seaBiomeNames.Length);
-                        for (int i = 0; i < seaBiomeNames.Length; i++)
+                        try
                         {
-                            biomes2[biomes2.Length - (1 + i)] = SeabiomesByName[seaBiomeNames[i]];
+                            for (int i = 0; i < seaBiomeNames.Length; i++)
+                                biomes2[biomes2.Length - (1 + i)] = SeabiomesByName[seaBiomeNames[i]];
+                        }
+                        catch (Exception e)
+                        {
+                            for (int i = 0; i < seaBiomeNames.Length; i++)
+                            {
+                                if (!SeabiomesByName.ContainsKey(seaBiomeNames[i]))
+                                    throw new Exception("Failed to find biome of name " + seaBiomeNames[i] + " in SeabiomesByName", e);
+                            }
                         }
                         biomesInside.SetValue(item, biomes2);
                         DebugWater.LogGen("Biomes added!");
 
                         Array.Resize(ref biomesWeightsCached, biomesWeightsCached.Length + seaBiomeNames.Length);
-                        for (int i = 0; i < seaBiomeNames.Length; i++)
-                            biomesWeightsCached[biomes2.Length - (1 + i)] = SeabiomeToWeight[SeabiomesByName[seaBiomeNames[i]]];
+                        try
+                        {
+                            for (int i = 0; i < seaBiomeNames.Length; i++)
+                                biomesWeightsCached[biomes2.Length - (1 + i)] = SeabiomeToWeight[SeabiomesByName[seaBiomeNames[i]]];
+                        }
+                        catch (Exception e)
+                        {
+                            for (int i = 0; i < seaBiomeNames.Length; i++)
+                            {
+                                if (!SeabiomeToWeight.ContainsKey(SeabiomesByName[seaBiomeNames[i]]))
+                                    throw new Exception("Failed to find biome of name " + seaBiomeNames[i] + " in SeabiomeToWeight", e);
+                            }
+                        }
                         biomesWeights.SetValue(item, biomesWeightsCached);
                         DebugWater.LogGen("Biome weights added for (" + (item.name.NullOrEmpty() ? "<NULL>" : item.name) + ")!");
                     }
@@ -505,14 +585,109 @@ Biome #21 - SmallCraters_Biome
         }
 
 
+        private static void DisableSeaBiomeGroupAssignments(List<BiomeGroup> biomesGrouped)
+        {
+            foreach (var item in biomesGrouped)
+            {
+                if (item == seaBiomeGroup)
+                    return; // DON'T TOUCH THE SEA BIOME!!!!
+                Biome[] biomes2 = (Biome[])biomesInside.GetValue(item);
+                float[] biomesWeightsCached = (float[])biomesWeights.GetValue(item);
+                if (biomesWeightsCached == null)
+                {
+                    DebugWater.Log("NULL Biome Weights?");
+                    continue;
+                }
+                for (int step2 = 0; step2 < biomes2.Length; step2++)
+                {
+                    if (SeabiomeToWeight.ContainsKey(biomes2[step2]))
+                        biomesWeightsCached[step2] = 0;
+                }
+                biomesWeights.SetValue(item, biomesWeightsCached);
+            }
+        }
+
+
+
+
+
+        private static bool PRIMARY_SanityCheckAndGetBiomes(BiomeMap biomesMain,
+            out BiomeGroup[] ogBiomeGroups, ref List<Biome> biomesCopy)
+        {
+            ogBiomeGroups = null;
+            if (biomesMain == null)
+            {
+                DebugWater.Log("Could not change biomes: Biomes is not loaded...");
+                return false;
+            }
+            if (ManWorld.inst?.TileManager == null)
+            {
+                DebugWater.Log("Could not change biomes: TileManager is not loaded...");
+                return false;
+            }
+            ogBiomeGroups = biomesBatched2.GetValue(biomesMain) as BiomeGroup[];
+            if (ogBiomeGroups == null || ogBiomeGroups.Length == 0)
+            {
+                DebugWater.Log("Could not change biomes: BiomeGroups is not loaded...");
+                return false;
+            }
+            biomesCopy.Clear();
+            var biomesDataGet = biomesData.GetValue(biomesMain);
+            if (biomesDataGet == null || biomesAll.GetValue(biomesDataGet) == null)
+            {   // Get from the existing default pool
+                foreach (BiomeGroup biomeGroup in ogBiomeGroups)
+                {
+                    for (int step = 0; step < biomeGroup.Biomes.Length; step++)
+                    {
+                        Biome biom = biomeGroup.Biomes[step];
+                        if (!biomesCopy.Contains(biom))
+                            biomesCopy.Add(biom);
+                    }
+                }
+            }
+            else
+                biomesCopy.AddRange((Biome[])biomesAll.GetValue(biomesDataGet)); // get from BiomeGroupDatabase
+            return true;
+        }
+        private static void SetBiomesAndGroups(BiomeMap biomesMain,
+           List<BiomeGroup> biomeGroups, List<Biome> allBiomes)
+        {
+            recursionStopper = true;
+            try
+            {
+                ManWorld.inst.TileManager.PauseGenerationOneFrame();
+                biomesMain.InvalidateBiomeDB();
+                var sharedBGArray = biomeGroups.ToArray();
+                var biomesDataGet = biomesData.GetValue(biomesMain);
+                if (biomesDataGet != null)
+                {
+                    biomesAll.SetValue(biomesDataGet, new List<Biome>(allBiomes));
+                    biomesBatched.SetValue(biomesDataGet, sharedBGArray);
+                }
+                biomesBatched2.SetValue(biomesMain, sharedBGArray);
+                biomesMain.LookupBiome(0);
+                ManWorld.inst.Reset(ManWorld.inst.CurrentBiomeMap);
+                ManWorldTileExt.RushTileLoading();
+            }
+            finally
+            {
+                recursionStopper = false;
+            }
+        }
+
+        private static List<Biome> curList = new List<Biome>();
+        private static bool recursionStopper = false;
+
+
+
         public static void InitiateAndOrEnableOceanicBiomes(BiomeMap biomesMain)
         {
-            if (applied)
+            //DebugWater.Log("InitiateAndOrEnableOceanicBiomes");
+            if (recursionStopper)
                 return;
-            OceanDebuggerGUI.Init();
+            //OceanDebuggerGUI.Init();
 
             //Debug_TTExt.ShouldLogBiomeGen = true;
-            applied = true;
             int errorCode = 0;
             try
             {
@@ -540,28 +715,30 @@ Biome #21 - SmallCraters_Biome
                 else if (oceanBiomesAllReady)
                     return;
 
-                if (!PRIMARY_SanityCheck(biomesMain, out var groupB))
+                if (applied)
+                    return;
+                applied = true;
+
+                DebugWater.Log("Ocean man why don't you take me by the hand~");
+                if (!PRIMARY_SanityCheckAndGetBiomes(biomesMain, out var groupB, ref curList))
                     return;
 
                 InsureInit();
 
                 OnClampTerrain.Subscribe(CleanupMess);
                 oceanBiomesAllReady = true;
-                ManWorld.inst.TileManager.PauseGenerationOneFrame();
-                biomesMain.InvalidateBiomeDB();
 
                 //DebugWater.Log("Biomes: " + biomesMain.GetNumBiomes());
                 List<BiomeGroup> biomesGrouped = groupB.ToList();
                 var biomesDataGet = biomesData.GetValue(biomesMain);
                 errorCode++;
-                List<Biome> biomes = InsureBiomesAreLoaded(biomesMain, biomesGrouped);
-                if (biomes.Count < numExpectedBiomes)
+                if (curList.Count < numExpectedBiomes)
                 {
                     DebugWater.Log("We are not in the main game. We cannot apply any changes made by " + nameof(ManOceanGenerator));
                     return;
                 }
 
-                if (Singleton.playerTank != null)
+                if (!ManPointer.inst.IsInteractionBlocked)
                     UIHelpersExt.BigF5broningBannerSP("Rebuilding planet...", false);
 
                 AddWaterScenery();
@@ -570,7 +747,7 @@ Biome #21 - SmallCraters_Biome
                 {
                     errorCode++;
                     if (SeabiomeToWeight == null)
-                        RegenerateSeaBiomesToWeight(biomes);
+                        RegenerateSeaBiomesToWeight(curList);
 
                     /*
                     //CHECK THIS
@@ -581,7 +758,7 @@ Biome #21 - SmallCraters_Biome
                     */
 
                     if (seaBiomeGroup == null)
-                        RegenerateSeaBiomesGroup(biomes, biomesGrouped);
+                        RegenerateSeaBiomesGroup(curList, biomesGrouped);
 
                     errorCode = 15000;
                     biomesGrouped.Add(seaBiomeGroup);
@@ -593,10 +770,6 @@ Biome #21 - SmallCraters_Biome
                         AddOnlySeaBiomes(biomesGrouped);
 
                     errorCode++;
-                    if (biomesDataGet != null)
-                        biomesBatched.SetValue(biomesDataGet, biomesGrouped.ToArray());
-                    errorCode++;
-                    biomesBatched2.SetValue(biomesMain, biomesGrouped.ToArray());
                     DebugWater.Log("Ocean Biomes setup!");
                     seaBiomesExist = true;
                 }
@@ -609,10 +782,10 @@ Biome #21 - SmallCraters_Biome
 
                     biomesGrouped.Add(seaBiomeGroup);
                     errorCode++;
-                    biomesBatched2.SetValue(biomesMain, biomesGrouped.ToArray());
                     DebugWater.Log("Ocean Biomes reloaded");
                 }
-                ManWorld.inst.TileManager.Reset();
+
+                SetBiomesAndGroups(biomesMain, biomesGrouped, curList);
             }
             catch (Exception e)
             {
@@ -620,76 +793,45 @@ Biome #21 - SmallCraters_Biome
             }
         }
 
-
-        private static void DisableSeaBiomeGroupAssignments(List<BiomeGroup> biomesGrouped)
-        {
-            foreach (var item in biomesGrouped)
-            {
-                if (item == seaBiomeGroup)
-                    return; // DON'T TOUCH THE SEA BIOME!!!!
-                Biome[] biomes2 = (Biome[])biomesInside.GetValue(item);
-                float[] biomesWeightsCached = (float[])biomesWeights.GetValue(item);
-                if (biomesWeightsCached == null)
-                {
-                    DebugWater.Log("NULL Biome Weights?");
-                    continue;
-                }
-                if (biomes2.Length - (SeabiomeToWeight.Count + 1) < 0)
-                {
-                    DebugWater.FatalError("For \"" + (item.name.NullOrEmpty() ? "<NULL>" : item.name) + "\", we expected at least " +
-                        (SeabiomeToWeight.Count + 1) + " biomes to be assigned yet there's only " +
-                        biomes2.Length + " biomes present." + " DID WE EVEN APPLY THE CHANGES DAMMIT!?!");
-                }
-                for (int step2 = 0; step2 < SeabiomeToWeight.Count; step2++)
-                {
-                    biomesWeightsCached[biomes2.Length - (step2 + 1)] = 0;
-                }
-                biomesWeights.SetValue(item, biomesWeightsCached);
-            }
-        }
-
         public static void DisableOceanicBiomes(BiomeMap biomesMain)
         {
+            //DebugWater.Log("DisableOceanicBiomes");
             if (!applied)
                 return;
             int errorCode = 0;
             applied = false;
             try
             {
-                if (!PRIMARY_SanityCheck(biomesMain, out var groupB))
+                if (!PRIMARY_SanityCheckAndGetBiomes(biomesMain, out var groupB, ref curList))
                     return;
 
                 OnClampTerrain.Unsubscribe(CleanupMess);
                 oceanBiomesAllReady = false;
-                ManWorld.inst.TileManager.PauseGenerationOneFrame();
-                biomesMain.InvalidateBiomeDB();
 
                 //DebugWater.Log("Biomes: " + biomesMain.GetNumBiomes());
                 List<BiomeGroup> biomesGrouped = groupB.ToList();
-                List<Biome> biomes = InsureBiomesAreLoaded(biomesMain, biomesGrouped);
-                if (biomes.Count < numExpectedBiomes)
+                if (curList.Count < numExpectedBiomes)
                 {
                     DebugWater.Log("We are not in the main game. We cannot apply any changes made by " + nameof(ManOceanGenerator));
                     return;
                 }
 
-                if (Singleton.playerTank != null)
+                if (!ManPointer.inst.IsInteractionBlocked)
                     UIHelpersExt.BigF5broningBannerSP("Rebuilding planet...", false);
 
-                if (ApplySeaToALL)
-                    DisableSeaBiomeGroupAssignments(biomesGrouped);
                 biomesGrouped.Remove(seaBiomeGroup);
+                DisableSeaBiomeGroupAssignments(biomesGrouped);
 
                 errorCode++;
-                biomesBatched2.SetValue(biomesMain, biomesGrouped.ToArray());
+                SetBiomesAndGroups(biomesMain, biomesGrouped, curList);
                 DebugWater.Log("Ocean Biomes removed");
-                ManWorld.inst.TileManager.Reset();
             }
             catch (Exception e)
             {
                 throw new Exception("Failed at " + errorCode, e);
             }
         }
+
 
 
         private static void SinkBiomeTEMP(Biome biome, float depthScaler, bool blockScenery, bool invertDelta = false)

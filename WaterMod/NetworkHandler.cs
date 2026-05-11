@@ -139,7 +139,6 @@ namespace WaterMod
                 RainWeightMultiplier = WaterGlobals.RainWeightMultiplier;
                 RainDrainMultiplier = WaterGlobals.RainDrainMultiplier;
                 FloodChangeClamp = WaterGlobals.FloodChangeClamp;
-                AbyssDepth = WaterGlobals.AbyssDepth;
                 LavaDampenMulti = WaterGlobals.LavaDampenMulti;
                 WheelWaterForceMultiplier = WaterGlobals.WheelWaterForceMultiplier;
             }
@@ -164,7 +163,6 @@ namespace WaterMod
                 WaterGlobals.RainWeightMultiplier = RainWeightMultiplier;
                 WaterGlobals.RainDrainMultiplier = RainDrainMultiplier;
                 WaterGlobals.FloodChangeClamp = FloodChangeClamp;
-                WaterGlobals.AbyssDepth = AbyssDepth;
                 WaterGlobals.LavaDampenMulti = LavaDampenMulti;
                 WaterGlobals.WheelWaterForceMultiplier = WheelWaterForceMultiplier;
             }

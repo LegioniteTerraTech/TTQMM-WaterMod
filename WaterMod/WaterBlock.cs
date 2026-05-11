@@ -219,7 +219,7 @@ namespace WaterMod
             {
                 if (ManWater.SplashSmall != null)
                 {
-                    ManWater.SplashSmall.Volume = 0.5f * Mathf.Clamp01(Mathf.Abs(TankBlock.rbody.velocity.y * 0.025f));
+                    ManWater.SplashSmall.Volume = ManWater.WaterSoundSplash * 0.5f * Mathf.Clamp01(Mathf.Abs(TankBlock.rbody.velocity.y * 0.025f));
                     ManWater.SplashSmall.Play(true, TankBlock.centreOfMassWorld);
                 }
             }
@@ -227,7 +227,7 @@ namespace WaterMod
             {
                 if (ManWater.SplashMedium != null)
                 {
-                    ManWater.SplashMedium.Volume = 0.4f * Mathf.Clamp01(Mathf.Abs(TankBlock.rbody.velocity.y * 0.025f));
+                    ManWater.SplashMedium.Volume = ManWater.WaterSoundSplash * 0.4f * Mathf.Clamp01(Mathf.Abs(TankBlock.rbody.velocity.y * 0.025f));
                     ManWater.SplashMedium.Play(true, TankBlock.centreOfMassWorld);
                 }
             }
@@ -235,7 +235,7 @@ namespace WaterMod
             {
                 if (ManWater.SplashLarge != null)
                 {
-                    ManWater.SplashLarge.Volume = 0.5f * Mathf.Clamp01(Mathf.Abs(TankBlock.rbody.velocity.y * 0.025f));
+                    ManWater.SplashLarge.Volume = ManWater.WaterSoundSplash * 0.5f * Mathf.Clamp01(Mathf.Abs(TankBlock.rbody.velocity.y * 0.025f));
                     ManWater.SplashLarge.Play(true, TankBlock.centreOfMassWorld);
                 }
             }
